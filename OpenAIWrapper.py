@@ -1,5 +1,5 @@
-from openai import OpenAI
 import json
+from openai import OpenAI
 
 class OpenAIWrapper:
   def __init__(self, api_key: str, model: str = "gpt-4o-mini", max_context_length: int = 4096):
@@ -16,9 +16,10 @@ class OpenAIWrapper:
     context = self.messages + [{"role": "user", "content": prompt}]
     
     total_tokens = sum(len(msg["content"].split()) for msg in context)
-    while total_tokens > self.max_context_length and len(context) > 1:
-        context.pop(0)  # Remove oldest message until within length limit
-        total_tokens = sum(len(msg["content"].split()) for msg in context)
+    if self.max_context_length != -1:
+      while total_tokens > self.max_context_length and len(context) > 1:
+          context.pop(0)  # Remove oldest message until within length limit
+          total_tokens = sum(len(msg["content"].split()) for msg in context)
 
     return context
 
