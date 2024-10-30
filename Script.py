@@ -69,13 +69,13 @@ def extract_function_code(function: FunctionInfo) -> str:
 
 def refactor_function(function_code: str, wrapper: OpenAIWrapper) -> str:
     prompt = """```javascript
-  {code}
-  ```
-  Refactor the provided javascript method to enhance its readability and maintainability. 
-  You can assume that the given method is functionally correct. Ensure that you do not alter 
-  the external behavior of the method, maintaining both syntactic and semantic correctness.
-  Provide the javascript method within a code block. Avoid using natural language explanations.
-  """.format(code=function_code)
+    {code}
+    ```
+    Refactor the provided javascript method to enhance its readability and maintainability. 
+    You can assume that the given method is functionally correct. Ensure that you do not alter 
+    the external behavior of the method, maintaining both syntactic and semantic correctness.
+    Provide the javascript method within a code block. Avoid using natural language explanations.
+    """.format(code=function_code)
 
     improved_code = wrapper.send_message(prompt)
 
@@ -109,14 +109,6 @@ def get_test_stacktrace(project_dir: str) -> None | str:
 
 
 def main() -> None:
-    # Measure test coverage before changes
-    # Measure complexity of code files
-    # Have LLM refactor file
-    # see if tests pass
-    # Measure test coverage after changes
-    # Measure complexity after changes
-    # Provide summary of how values have changed
-
     project_dir = '/media/lebkuchen/storage-disk/Repos/express'
     code_dir = '/lib'
 
@@ -136,8 +128,9 @@ def main() -> None:
     project_copy_dir = create_copy_of_project(
         project_dir, copy_suffix=copy_suffix)
 
-    patch_code(file_path=most_complex.filename.replace(
-        project_dir, project_copy_dir), old_code=most_complex_code, new_code=refactored_code)
+    patch_code(file_path=most_complex.filename.replace(project_dir, project_copy_dir),
+               old_code=most_complex_code,
+               new_code=refactored_code)
 
     filename = datetime.datetime.now(datetime.timezone.utc).strftime(
         "%Y-%m-%d-%H-%M-%S") + '.json'
