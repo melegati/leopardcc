@@ -1,49 +1,17 @@
 import subprocess
 import operator
-import json
-import shutil
-import os
 import functools
 import datetime
 import re
 import lizard  # type: ignore
 from lizard import FunctionInfo
 from OpenAIWrapper import OpenAIWrapper
+from projects.Expressjs import Expressjs
 
 
-def create_copy_of_project(file_path: str, copy_suffix: str = '-copy') -> str:
-    destination_path = file_path + copy_suffix
-
-    if os.path.exists(destination_path):
-        shutil.rmtree(destination_path)
-
-    ignore_patterns = shutil.ignore_patterns('.git')
-    return shutil.copytree(file_path, destination_path, dirs_exist_ok=True, ignore=ignore_patterns)
-
-
-def measure_test_coverage(project_dir: str):
-    try:
-        subprocess.run(['cd ' + project_dir +
-                        ' && npx nyc --exclude examples --exclude test --exclude benchmarks --reporter=json-summary npm test'],
-                       shell=True, capture_output=True, text=True, check=True)
-        with open(project_dir + '/coverage/coverage-summary.json', "r") as coverage_summary:
-            coverage_info = json.load(coverage_summary)
-
-        coverage_info_cleansed = dict()
-        for module in coverage_info:
-            coverage_info_cleansed[module.replace(project_dir, '')] = {
-                'coverage': coverage_info[module]}
-
-        return coverage_info_cleansed
-
-    except subprocess.CalledProcessError as e:
-        print(f"An error occurred: {e}")
-        return None
-
-
-def compute_cyclomatic_complexity(project_dir: str, code_dir: str) -> list[FunctionInfo]:
+def compute_cyclomatic_complexity(project_path: str, code_dir: str) -> list[FunctionInfo]:
     extensions = lizard.get_extensions(extension_names=["io"])
-    analysis = lizard.analyze(paths=[project_dir + code_dir], exts=extensions)
+    analysis = lizard.analyze(paths=[project_path + code_dir], exts=extensions)
 
     functions = list()
     for file in list(analysis):
@@ -94,41 +62,25 @@ def patch_code(file_path: str, old_code: str, new_code: str) -> None:
         file.write(filedata)
 
 
-def get_test_stacktrace(project_dir: str) -> None | str:
-    try:
-        subprocess.run(['cd ' + project_dir + ' && npm test'],
-                       shell=True, capture_output=True, text=True, check=True)
-        return None
-
-    except subprocess.CalledProcessError as e:
-        stdout_cleaned = re.sub('\[[0-9;]+[a-zA-Z]', '', e.stdout)
-        stdout_no_esc = re.sub('\u001b', '', stdout_cleaned)
-        stdout_filtered = re.sub(
-            '(.*\n)+.*' + str(e.returncode) + ' failing', '', stdout_no_esc)
-        return stdout_filtered
-
-
 def main() -> None:
-    project_dir = '/media/lebkuchen/storage-disk/Repos/express'
-    code_dir = '/lib'
+    project_path = Expressjs().project_path
+    code_dir = Expressjs().code_dir
 
     key_file = open('openai-key.txt', "r", encoding="utf-8")
     api_key = key_file.read()
     wrapper = OpenAIWrapper(
         api_key=api_key, model="gpt-4o-mini", max_context_length=-1)
 
-    # coverage_info = measure_test_coverage(project_dir)
-    complexity_info = compute_cyclomatic_complexity(project_dir, code_dir)
+    # coverage_info = Expressjs().measure_test_coverage(project_path)
+    complexity_info = compute_cyclomatic_complexity(project_path, code_dir)
     most_complex = find_most_complex_function(complexity_info)
     most_complex_code = extract_function_code(most_complex)
 
     refactored_code = refactor_function(most_complex_code, wrapper)
 
-    copy_suffix = '-copy'
-    project_copy_dir = create_copy_of_project(
-        project_dir, copy_suffix=copy_suffix)
+    project_copy_dir = Expressjs().create_copy()
 
-    patch_code(file_path=most_complex.filename.replace(project_dir, project_copy_dir),
+    patch_code(file_path=most_complex.filename.replace(project_path, project_copy_dir),
                old_code=most_complex_code,
                new_code=refactored_code)
 
