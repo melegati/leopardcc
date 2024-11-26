@@ -41,15 +41,28 @@ class Expressjs(ProjectInterface):
             print(f"An error occurred: {e}")
             return None
 
-    def get_test_stacktrace(self, project_path: str) -> None | str:
+    def __extract_errors_from_stacktrace(self, stacktrace: str) -> list[str]:
+        stacktrace_newline = re.sub(r'\\n', r'\n', stacktrace)
+        ansi_escape_pattern = re.compile(
+            r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        stacktrace_no_ansi_esc = re.sub(
+            ansi_escape_pattern, '', stacktrace_newline)
+        split_pattern = r'passing \(\d+s\)\n *\d+ failing'
+        stacktrace_summary = re.split(
+            split_pattern, stacktrace_no_ansi_esc)[1]
+        error_pattern = r'^\s*(\d+\).*?(?:\n.+){7})'
+        matches = re.findall(
+            error_pattern, stacktrace_summary, re.MULTILINE)
+
+        return matches
+
+    def get_test_error_messages(self, project_path: str):
         try:
             subprocess.run(['cd ' + project_path + ' && npm test'],
-                           shell=True, capture_output=True, text=True, check=True)
+                           shell=True, capture_output=True, text=True, check=True, timeout=7)
             return None
 
-        except subprocess.CalledProcessError as e:
-            stdout_cleaned = re.sub('\[[0-9;]+[a-zA-Z]', '', e.stdout)
-            stdout_no_esc = re.sub('\u001b', '', stdout_cleaned)
-            stdout_filtered = re.sub(
-                '(.*\n)+.*' + str(e.returncode) + ' failing', '', stdout_no_esc)
-            return stdout_filtered
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            errors = self.__extract_errors_from_stacktrace(str(e.stdout))
+
+            return errors

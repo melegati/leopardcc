@@ -17,9 +17,8 @@ class ProjectInterface(ABC):
         """The directory inside the project which holds the source code (e. g. 'src', 'lib', ...)"""
         pass
 
-    @abstractmethod
     def after_copy_hook(self) -> None:
-        """Optional code to be executed to prepare running tests (e. g. installing node modules)"""
+        """Optional code to be executed to prepare running tests (e. g. installing 3rd party libraries)"""
         pass
 
     def create_copy(self) -> str:
@@ -42,5 +41,5 @@ class ProjectInterface(ABC):
         pass
 
     @abstractmethod
-    def get_test_stacktrace(self, project_path: str) -> None | str:
+    def get_test_error_messages(self, project_path: str) -> None | list[str]:
         pass
