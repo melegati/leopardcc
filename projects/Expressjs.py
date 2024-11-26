@@ -63,6 +63,17 @@ class Expressjs(ProjectInterface):
             return None
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            errors = self.__extract_errors_from_stacktrace(str(e.stdout))
+            messages = self.__extract_errors_from_stacktrace(str(e.stdout))
+            errors: list[TestError] = []
+            for message in messages:
+                error: TestError = {'message': message,
+                                    'test_file': None, 'target_line': None}
+                file_pattern = r' *at Context.<anonymous> \((.+):(\d+):'
+                matches = re.findall(file_pattern, message)
+                if len(matches) != 0:
+                    (file, line) = matches[0]
+                    error['test_file'] = file
+                    error['target_line'] = line
+                errors.append(error)
 
             return errors

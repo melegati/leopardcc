@@ -1,7 +1,14 @@
 from abc import ABC, abstractmethod
+from typing import TypedDict
 import os
 import shutil
 import subprocess
+
+
+class TestError(TypedDict):
+    message: str
+    test_file: str | None
+    target_line: int | None
 
 
 class ProjectInterface(ABC):
@@ -41,5 +48,5 @@ class ProjectInterface(ABC):
         pass
 
     @abstractmethod
-    def get_test_error_messages(self, project_path: str) -> None | list[str]:
+    def get_test_error_messages(self, project_path: str) -> None | list[TestError]:
         pass
