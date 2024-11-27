@@ -76,3 +76,34 @@ class Expressjs(ProjectInterface):
                 errors.append(error)
 
             return errors
+
+    def get_test_case(self, project_path: str, error: TestError) -> str | None:
+        if error['test_file'] is None or error['target_line'] is None:
+            return None
+
+        file_path = project_path + '/' + error['test_file']
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+
+        # Find the start and end of the surrounding `it()` closure.
+        start_line = error['target_line']
+
+        # Traverse upwards to find the start of the `it()` closure.
+        while start_line > 0 and not (lines[start_line].strip().startswith("it(")
+                                      or lines[start_line].strip().startswith("test(")):
+            start_line -= 1
+
+        # Traverse downwards to find the end of the closure (assuming balanced braces).
+        end_line = start_line
+        open_braces = 0
+        while end_line < len(lines):
+            line = lines[end_line]
+            open_braces += line.count('{')
+            open_braces -= line.count('}')
+            end_line += 1
+            if open_braces == 0:
+                break
+
+        # Get the closure content
+        test_case = lines[start_line:end_line]
+        return ''.join(test_case)
