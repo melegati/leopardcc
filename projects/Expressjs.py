@@ -1,4 +1,4 @@
-from ProjectInterface import ProjectInterface
+from ProjectInterface import ProjectInterface, TestError
 import shutil
 import subprocess
 import re
@@ -47,13 +47,12 @@ class Expressjs(ProjectInterface):
             r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         stacktrace_no_ansi_esc = re.sub(
             ansi_escape_pattern, '', stacktrace_newline)
-        split_pattern = r'passing \(\d+s\)\n *\d+ failing'
-        stacktrace_summary = re.split(
-            split_pattern, stacktrace_no_ansi_esc)[1]
-        error_pattern = r'^\s*(\d+\).*?(?:\n.+){7})'
-        matches = re.findall(
-            error_pattern, stacktrace_summary, re.MULTILINE)
+        split_pattern = r'passing \(\d+s\)\n *\d+ failing\n\n'
+        stacktrace_summary = re.split(split_pattern, stacktrace_no_ansi_esc)[1]
 
+        error_split_pattern = r'\)\n\n *\d+\)'
+        stacktrace_summary = stacktrace_summary.strip()
+        matches = re.split(error_split_pattern, stacktrace_summary)
         return matches
 
     def get_test_error_messages(self, project_path: str):
@@ -73,7 +72,7 @@ class Expressjs(ProjectInterface):
                 if len(matches) != 0:
                     (file, line) = matches[0]
                     error['test_file'] = file
-                    error['target_line'] = line
+                    error['target_line'] = int(line)
                 errors.append(error)
 
             return errors
