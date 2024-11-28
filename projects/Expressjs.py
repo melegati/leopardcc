@@ -22,7 +22,7 @@ class Expressjs(ProjectInterface):
                         ' && npm install'],
                        shell=True, capture_output=True, text=True, check=True)
 
-    def measure_test_coverage(self, project_path: str):
+    def measure_test_coverage(self, project_path):
         try:
             subprocess.run(['cd ' + project_path +
                             ' && npx nyc --exclude examples --exclude test --exclude benchmarks --reporter=json-summary npm test'],
@@ -41,7 +41,7 @@ class Expressjs(ProjectInterface):
             print(f"An error occurred: {e}")
             return None
 
-    def get_test_errors(self, project_path: str):
+    def get_test_errors(self, project_path):
         try:
             test_command = 'npx mocha --require test/support/env --reporter json --check-leaks test/ test/acceptance/'
             subprocess.run(['cd ' + project_path + ' && ' + test_command],
@@ -57,7 +57,7 @@ class Expressjs(ProjectInterface):
             errors: list[TestError] = []
             for failure in failures:
                 error: TestError = {'expectation': failure['fullTitle'],
-                                    'error': failure['err']['message'],
+                                    'message_stack': failure['err']['stack'],
                                     'test_file': failure['file'],
                                     'target_line': None}
                 line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
@@ -68,7 +68,7 @@ class Expressjs(ProjectInterface):
 
             return errors
 
-    def get_test_case(self, error: TestError) -> str | None:
+    def get_test_case(self, error):
         if error['test_file'] is None or error['target_line'] is None:
             return None
 
@@ -101,6 +101,6 @@ class Expressjs(ProjectInterface):
             len(test_case_lines[0].lstrip())
         test_case = ''
         for line in test_case_lines:
-            test_case += line.removeprefix(white_spaces_count * ' ')
+            test_case += line.removeprefix(white_spaces_count * ' ').rstrip()
 
         return test_case
