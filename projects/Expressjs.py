@@ -41,48 +41,38 @@ class Expressjs(ProjectInterface):
             print(f"An error occurred: {e}")
             return None
 
-    def __extract_errors_from_stacktrace(self, stacktrace: str) -> list[str]:
-        stacktrace_newline = re.sub(r'\\n', r'\n', stacktrace)
-        ansi_escape_pattern = re.compile(
-            r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        stacktrace_no_ansi_esc = re.sub(
-            ansi_escape_pattern, '', stacktrace_newline)
-        split_pattern = r'passing \(\d+s\)\n *\d+ failing\n\n'
-        stacktrace_summary = re.split(split_pattern, stacktrace_no_ansi_esc)[1]
-
-        error_split_pattern = r'\)\n\n *\d+\)'
-        stacktrace_summary = stacktrace_summary.strip()
-        matches = re.split(error_split_pattern, stacktrace_summary)
-        return matches
-
-    def get_test_error_messages(self, project_path: str):
+    def get_test_errors(self, project_path: str):
         try:
-            subprocess.run(['cd ' + project_path + ' && npm test'],
+            test_command = 'npx mocha --require test/support/env --reporter json --check-leaks test/ test/acceptance/'
+            subprocess.run(['cd ' + project_path + ' && ' + test_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
             return None
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            messages = self.__extract_errors_from_stacktrace(str(e.stdout))
+            if e.stdout is None:
+                raise Exception("Unit tests do not have stdout to read from")
+            test_info = json.loads(e.stdout)
+            failures = test_info['failures']
+
             errors: list[TestError] = []
-            for message in messages:
-                error: TestError = {'message': message,
-                                    'test_file': None, 'target_line': None}
-                file_pattern = r' *at Context.<anonymous> \((.+):(\d+):'
-                matches = re.findall(file_pattern, message)
-                if len(matches) != 0:
-                    (file, line) = matches[0]
-                    error['test_file'] = file
-                    error['target_line'] = int(line)
+            for failure in failures:
+                error: TestError = {'expectation': failure['fullTitle'],
+                                    'error': failure['err']['message'],
+                                    'test_file': failure['file'],
+                                    'target_line': None}
+                line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
+                line_match = re.search(line_pattern, failure['err']['stack'])
+                if line_match is not None:
+                    error['target_line'] = int(line_match.group(1))
                 errors.append(error)
 
             return errors
 
-    def get_test_case(self, project_path: str, error: TestError) -> str | None:
+    def get_test_case(self, error: TestError) -> str | None:
         if error['test_file'] is None or error['target_line'] is None:
             return None
 
-        file_path = project_path + '/' + error['test_file']
-        with open(file_path, 'r') as f:
+        with open(error['test_file'], 'r') as f:
             lines = f.readlines()
 
         # Find the start and end of the surrounding `it()` closure.
@@ -105,5 +95,12 @@ class Expressjs(ProjectInterface):
                 break
 
         # Get the closure content
-        test_case = lines[start_line:end_line]
-        return ''.join(test_case)
+        test_case_lines = lines[start_line:end_line]
+
+        white_spaces_count = len(test_case_lines[0]) - \
+            len(test_case_lines[0].lstrip())
+        test_case = ''
+        for line in test_case_lines:
+            test_case += line.removeprefix(white_spaces_count * ' ')
+
+        return test_case

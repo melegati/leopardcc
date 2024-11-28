@@ -6,7 +6,8 @@ import subprocess
 
 
 class TestError(TypedDict):
-    message: str
+    expectation: str
+    error: str
     test_file: str | None
     target_line: int | None
 
@@ -48,5 +49,5 @@ class ProjectInterface(ABC):
         pass
 
     @abstractmethod
-    def get_test_error_messages(self, project_path: str) -> None | list[TestError]:
+    def get_test_errors(self, project_path: str) -> None | list[TestError]:
         pass
