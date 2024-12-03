@@ -7,12 +7,13 @@ import lizard  # type: ignore
 from lizard import FunctionInfo
 from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
+from projects.D3Shape import D3Shape
 from ProjectInterface import ProjectInterface, TestError
 
 
-def compute_cyclomatic_complexity(project_path: str, code_dir: str) -> list[FunctionInfo]:
+def compute_cyclomatic_complexity(path: str) -> list[FunctionInfo]:
     extensions = lizard.get_extensions(extension_names=["io"])
-    analysis = lizard.analyze(paths=[project_path + code_dir], exts=extensions)
+    analysis = lizard.analyze(paths=[path], exts=extensions)
 
     functions = list()
     for file in list(analysis):
@@ -22,10 +23,10 @@ def compute_cyclomatic_complexity(project_path: str, code_dir: str) -> list[Func
     return functions
 
 
-def find_most_complex_function(functions: list[FunctionInfo]) -> FunctionInfo:
+def get_most_complex_functions(functions: list[FunctionInfo]) -> list[FunctionInfo]:
     result = sorted(
         functions, key=lambda fun: fun.cyclomatic_complexity, reverse=True)
-    return result[0]
+    return result
 
 
 def extract_function_code(function: FunctionInfo) -> str:
@@ -47,6 +48,12 @@ def get_test_cases_from_errors(errors: list[TestError], project: ProjectInterfac
     return test_cases
 
 
+def is_new_function_improved(old_function: FunctionInfo, new_function: FunctionInfo) -> bool:
+    old_cyclomatic = old_function.cyclomatic_complexity
+    new_cyclomatic = new_function.cyclomatic_complexity
+    return new_cyclomatic < old_cyclomatic
+
+
 def __remove_code_block_backticks(code: str) -> str:
     no_backticks = code.replace("```javascript\n", "").replace("\n```", "")
     return no_backticks
@@ -56,8 +63,8 @@ def refactor_function(function_code: str, wrapper: OpenAIWrapper) -> str:
     prompt = """```javascript
     {code}
     ```
-    Refactor the provided javascript method to enhance its readability and maintainability. 
-    You can assume that the given method is functionally correct. Ensure that you do not alter 
+    Refactor the provided javascript method to enhance its readability and maintainability.
+    You can assume that the given method is functionally correct. Ensure that you do not alter
     the external behavior of the method, maintaining both syntactic and semantic correctness.
     Provide the javascript method within a code block. Avoid using natural language explanations.
     """.format(code=function_code)
@@ -95,6 +102,23 @@ def refactor_with_errors(errors: list[TestError], test_cases: list[str], wrapper
     return code_without_backticks
 
 
+def refactor_for_better_improvement(wrapper: OpenAIWrapper) -> str:
+    prompt = """The refactored Javascript method you provided lacks improvement in readability and maintainability. 
+    Identify the section that can be modularized in the refactored method."""
+
+    wrapper.send_message(prompt)
+
+    prompt = """Please rectify the refactored Javascript method to enhance its readability and maintainability by
+    utilizing information about the section that can be modularized. 
+    The method you provide should be syntactically identical to the original method.
+    Provide the full implementation of the improved Javascript method within a code block. 
+    Avoid providing explanations in natural language."""
+
+    improved_code = wrapper.send_message(prompt)
+    code_without_backticks = __remove_code_block_backticks(improved_code)
+    return code_without_backticks
+
+
 def patch_code(file_path: str, old_code: str, new_code: str) -> None:
     with open(file_path, 'r') as file:
         filedata = file.read()
@@ -106,7 +130,7 @@ def patch_code(file_path: str, old_code: str, new_code: str) -> None:
 
 
 def main() -> None:
-    project = Expressjs()
+    project = D3Shape()
 
     project_path = project.project_path
     code_dir = project.code_dir
@@ -114,25 +138,34 @@ def main() -> None:
     key_file = open('openai-key.txt', "r", encoding="utf-8")
     api_key = key_file.read()
     wrapper = OpenAIWrapper(
-        api_key=api_key, model="gpt-4o", max_context_length=-1)
+        api_key=api_key, model="gpt-4o-mini", max_context_length=-1)
 
     # coverage_info = project.measure_test_coverage(project_path)
-    complexity_info = compute_cyclomatic_complexity(project_path, code_dir)
-    most_complex = find_most_complex_function(complexity_info)
+    complexity_info = compute_cyclomatic_complexity(project_path + code_dir)
+    most_complex = get_most_complex_functions(complexity_info)[1]
     most_complex_code = extract_function_code(most_complex)
     function_history: list[str] = [most_complex_code]
 
     refactored_code = refactor_function(most_complex_code, wrapper)
 
-    project_copy_dir = project.create_copy()
+    project_copy_path = project.create_copy()
 
-    patch_code(file_path=most_complex.filename.replace(project_path, project_copy_dir),
+    target_file = most_complex.filename.replace(
+        project_path, project_copy_path)
+    patch_code(file_path=target_file,
                old_code=most_complex_code,
                new_code=refactored_code)
     function_history.append(refactored_code)
 
     is_project_improved = False
+    improvement_iteration = 0
     while not is_project_improved:
+        print("Improvement iteration: " + str(improvement_iteration))
+        if improvement_iteration >= 5:
+            # TODO (LS-2024-12-03): raise BaseException("Improvement iterations exceeded")
+            print("Improvement iterations exceeded")
+            break
+        improvement_iteration += 1
 
         is_project_plausible = False
         plausibility_iteration = 0
@@ -145,25 +178,34 @@ def main() -> None:
                 break
             plausibility_iteration += 1
 
-            errors = project.get_test_errors(project_copy_dir)
-            failing_tests_history.append(errors)
-            if errors == None:
-                is_project_plausible = True
-            else:
+            errors = project.get_test_errors(project_copy_path)
+            is_project_plausible = errors == None
+            if not is_project_plausible:
+                failing_tests_history.append(errors)
                 top_n_errors = errors[:10]
                 test_cases = get_test_cases_from_errors(
-                    top_n_errors, project, project_copy_dir)
+                    top_n_errors, project, project_copy_path)
 
                 refactored_code = refactor_with_errors(
                     top_n_errors, test_cases, wrapper)
-                patch_code(file_path=most_complex.filename.replace(project_path, project_copy_dir),
+                patch_code(file_path=target_file,
                            old_code=function_history[-1],
                            new_code=refactored_code)
                 function_history.append(refactored_code)
 
         # check improvement
-        # TODO (LS-2024-11-28): Implement me!
-        is_project_improved = True
+        target_file_functions = compute_cyclomatic_complexity(target_file)
+        improved_function = [fun for fun in target_file_functions if fun.name ==
+                             most_complex.name][0]
+
+        is_project_improved = is_new_function_improved(
+            most_complex, improved_function)
+        if not is_project_improved:
+            refactored_code = refactor_for_better_improvement(wrapper)
+            patch_code(file_path=target_file,
+                       old_code=function_history[-1],
+                       new_code=refactored_code)
+            function_history.append(refactored_code)
 
     filename = datetime.datetime.now(datetime.timezone.utc).strftime(
         "%Y-%m-%d-%H-%M-%S") + '.json'
