@@ -8,7 +8,7 @@ import subprocess
 class TestError(TypedDict):
     expectation: str
     message_stack: str
-    test_file: str | None
+    test_file: str
     target_line: int | None
 
 

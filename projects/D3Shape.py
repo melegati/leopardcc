@@ -5,45 +5,29 @@ import re
 import json
 
 
-class Expressjs(ProjectInterface):
+class D3Shape(ProjectInterface):
     @property
     def project_path(self):
-        return '/media/lebkuchen/storage-disk/Repos/express'
+        return '/media/lebkuchen/storage-disk/Repos/d3-shape'
 
     @property
     def code_dir(self):
-        return '/lib'
+        return '/src'
 
     def after_copy_hook(self) -> None:
         project_copy_path = self.project_path + '-copy'
         node_modules_dir = '/node_modules'
         shutil.rmtree(project_copy_path + node_modules_dir)
         subprocess.run(['cd ' + project_copy_path +
-                        ' && npm install'],
+                        ' && yarn install'],
                        shell=True, capture_output=True, text=True, check=True)
 
     def measure_test_coverage(self, project_path):
-        try:
-            subprocess.run(['cd ' + project_path +
-                            ' && npx nyc --exclude examples --exclude test --exclude benchmarks --reporter=json-summary npm test'],
-                           shell=True, capture_output=True, text=True, check=True)
-            with open(project_path + '/coverage/coverage-summary.json', "r") as coverage_summary:
-                coverage_info = json.load(coverage_summary)
-
-            coverage_info_cleansed = dict()
-            for module in coverage_info:
-                coverage_info_cleansed[module.replace(project_path, '')] = {
-                    'coverage': coverage_info[module]}
-
-            return coverage_info_cleansed
-
-        except subprocess.CalledProcessError as e:
-            print(f"An error occurred: {e}")
-            return None
+        pass
 
     def get_test_errors(self, project_path):
         try:
-            test_command = 'npx mocha --require test/support/env --reporter json --check-leaks test/ test/acceptance/'
+            test_command = 'npx mocha "test/**/*-test.js" --reporter json'
             subprocess.run(['cd ' + project_path + ' && ' + test_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
             return None
