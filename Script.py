@@ -9,6 +9,7 @@ from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
 from ProjectInterface import ProjectInterface, LintError, TestError
+from Logger import get_logger
 
 
 def compute_cyclomatic_complexity(path: str) -> list[FunctionInfo]:
@@ -166,6 +167,10 @@ def main() -> None:
 
     complexity_info = compute_cyclomatic_complexity(project_path + code_dir)
     most_complex = get_most_complex_functions(complexity_info)[1]
+    get_logger().info("Refactoring function " + most_complex.name +
+                      " from file " + most_complex.filename +
+                      " with CC: " + str(most_complex.cyclomatic_complexity))
+
     most_complex_code = extract_function_code(most_complex)
     function_history: list[str] = [most_complex_code]
 
@@ -186,25 +191,26 @@ def main() -> None:
     failing_tests_history: list[list[TestError]] = []
     try:
         while not is_project_improved:
-            print("Improvement iteration: " + str(improvement_iteration))
+            get_logger().info("Improvement iteration: " + str(improvement_iteration))
             if improvement_iteration >= 5:
-                print("Improvement iterations exceeded")
                 raise BaseException("Improvement iterations exceeded")
             improvement_iteration += 1
 
             does_linting_pass = False
             linting_iteration = 0
             while not does_linting_pass:
-                print("Linting iteration: " + str(linting_iteration))
+                get_logger().info("Linting iteration: " + str(linting_iteration))
                 if linting_iteration >= 5:
-                    print("Lint iterations exceeded")
                     raise BaseException("Lint iterations exceeded")
 
                 lint_errors = project.get_lint_errors(project_copy_path)
                 does_linting_pass = lint_errors == None
                 if not does_linting_pass:
                     linting_iteration += 1
+                    get_logger().info(str(len(lint_errors)) + " linter errors")
+                    get_logger().debug(lint_errors)
                     failing_linting_history.append(lint_errors)
+
                     top_n_errors = lint_errors[:10]
                     refactored_code = refactor_with_lint_errors(
                         top_n_errors, wrapper)
@@ -216,16 +222,18 @@ def main() -> None:
             do_tests_pass = False
             test_iteration = 0
             while not do_tests_pass:
-                print("Test iteration: " + str(test_iteration))
+                get_logger().info("Test iteration: " + str(test_iteration))
                 if test_iteration >= 5:
-                    print("Test iterations exceeded")
                     raise BaseException("Test iterations exceeded")
 
                 test_errors = project.get_test_errors(project_copy_path)
                 do_tests_pass = test_errors == None
                 if not do_tests_pass:
                     test_iteration += 1
+                    get_logger().info(str(len(test_errors)) + " test errors")
+                    get_logger().debug(test_errors)
                     failing_tests_history.append(test_errors)
+
                     top_n_errors = test_errors[:10]
                     test_cases = get_test_cases_from_errors(
                         top_n_errors, project, project_copy_path)
@@ -244,6 +252,8 @@ def main() -> None:
 
             is_project_improved = is_new_function_improved(
                 most_complex, improved_function)
+            get_logger().info("Improved function has CC: " +
+                              str(improved_function.cyclomatic_complexity))
             if not is_project_improved:
                 refactored_code = refactor_for_better_improvement(wrapper)
                 patch_code(file_path=target_file,
@@ -251,16 +261,13 @@ def main() -> None:
                            new_code=refactored_code)
                 function_history.append(refactored_code)
 
+    except Exception as e:
+        get_logger().error(e)
+
     finally:
         filename = datetime.datetime.now(datetime.timezone.utc).strftime(
             "%Y-%m-%d-%H-%M-%S") + '.json'
         wrapper.save_history_to_json('conversation-logs/' + filename)
-        for i, lint_run in enumerate(failing_linting_history):
-            print("Linting run " + str(i) + ": " +
-                  str(len(lint_run)) + " failing tests")
-        for i, test_run in enumerate(failing_tests_history):
-            print("Test run " + str(i) + ": " +
-                  str(len(test_run)) + " failing tests")
 
 
 if __name__ == "__main__":
