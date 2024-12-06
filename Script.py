@@ -8,7 +8,7 @@ from lizard import FunctionInfo
 from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
-from ProjectInterface import ProjectInterface, TestError
+from ProjectInterface import ProjectInterface, LintError, TestError
 
 
 def compute_cyclomatic_complexity(path: str) -> list[FunctionInfo]:
@@ -30,8 +30,8 @@ def get_most_complex_functions(functions: list[FunctionInfo]) -> list[FunctionIn
 
 
 def extract_function_code(function: FunctionInfo) -> str:
-    file = open(function.filename)
-    code = file.readlines()
+    with open(function.filename) as file:
+        code = file.readlines()
     function_lines = code[function.start_line - 1:function.end_line]
     function_code = functools.reduce(operator.add, function_lines)
     return function_code
@@ -74,9 +74,33 @@ def refactor_function(function_code: str, wrapper: OpenAIWrapper) -> str:
     return code_without_backticks
 
 
-def refactor_with_errors(errors: list[TestError], test_cases: list[str], wrapper: OpenAIWrapper) -> str:
-    stacks = map(lambda error: error['expectation'] +
-                 ": " + error['message_stack'], errors)
+def refactor_with_lint_errors(errors: list[LintError], wrapper: OpenAIWrapper) -> str:
+    messages = map(lambda error: "Error: {message} \nViolated rule: {rule}\nErroneous code: {code}".format(
+        message=error['message'], rule=error['rule_id'], code=error['erroneous_code']), errors)
+    message_stack = '\n\n'.join(messages)
+
+    prompt = """The refactored JavaScript method you provided does not pass the linting check.
+    The linting messages and the respective code look like:
+    ```
+    {message_stack}
+    ```
+    Explain why your code does not pass the linting check.
+    """.format(message_stack=message_stack)
+
+    explanation = wrapper.send_message(prompt)
+
+    prompt = """Fix your method by utilizing the error message, the linting messages, the erroneous code,
+    your explanation and the original method. Provide the javascript method within a code block.
+    Do not explain anything in natural language."""
+
+    improved_code = wrapper.send_message(prompt)
+    code_without_backticks = __remove_code_block_backticks(improved_code)
+    return code_without_backticks
+
+
+def refactor_with_test_errors(errors: list[TestError], test_cases: list[str], wrapper: OpenAIWrapper) -> str:
+    stacks = map(lambda error: "{expectation}: {message_stack}".format(
+        expectation=error['expectation'], message_stack=error['message_stack']), errors)
     stack_united = '\n\n'.join(list(stacks))
     test_cases_united = '\n\n'.join(test_cases)
 
@@ -135,8 +159,8 @@ def main() -> None:
     project_path = project.project_path
     code_dir = project.code_dir
 
-    key_file = open('openai-key.txt', "r", encoding="utf-8")
-    api_key = key_file.read()
+    with open('openai-key.txt', "r", encoding="utf-8") as key_file:
+        api_key = key_file.read()
     wrapper = OpenAIWrapper(
         api_key=api_key, model="gpt-4o-mini", max_context_length=-1)
 
@@ -159,60 +183,85 @@ def main() -> None:
 
     is_project_improved = False
     improvement_iteration = 0
-    while not is_project_improved:
-        print("Improvement iteration: " + str(improvement_iteration))
-        if improvement_iteration >= 5:
-            # TODO (LS-2024-12-03): raise BaseException("Improvement iterations exceeded")
-            print("Improvement iterations exceeded")
-            break
-        improvement_iteration += 1
+    failing_linting_history: list[list[LintError]] = []
+    failing_tests_history: list[list[TestError]] = []
+    try:
+        while not is_project_improved:
+            print("Improvement iteration: " + str(improvement_iteration))
+            if improvement_iteration >= 5:
+                print("Improvement iterations exceeded")
+                raise BaseException("Improvement iterations exceeded")
+            improvement_iteration += 1
 
-        is_project_plausible = False
-        plausibility_iteration = 0
-        failing_tests_history: list[list[TestError]] = []
-        while not is_project_plausible:
-            print("Plausibility iteration: " + str(plausibility_iteration))
-            if plausibility_iteration >= 5:
-                # TODO (LS-2024-11-28): raise BaseException("Plausibility iterations exceeded")
-                print("Plausibility iterations exceeded")
-                break
-            plausibility_iteration += 1
+            does_linting_pass = False
+            linting_iteration = 0
+            while not does_linting_pass:
+                print("Linting iteration: " + str(linting_iteration))
+                if linting_iteration >= 5:
+                    print("Lint iterations exceeded")
+                    raise BaseException("Lint iterations exceeded")
 
-            errors = project.get_test_errors(project_copy_path)
-            is_project_plausible = errors == None
-            if not is_project_plausible:
-                failing_tests_history.append(errors)
-                top_n_errors = errors[:10]
-                test_cases = get_test_cases_from_errors(
-                    top_n_errors, project, project_copy_path)
+                lint_errors = project.get_lint_errors(project_copy_path)
+                does_linting_pass = lint_errors == None
+                if not does_linting_pass:
+                    linting_iteration += 1
+                    failing_linting_history.append(lint_errors)
+                    top_n_errors = lint_errors[:10]
+                    refactored_code = refactor_with_lint_errors(
+                        top_n_errors, wrapper)
+                    patch_code(file_path=target_file,
+                               old_code=function_history[-1],
+                               new_code=refactored_code)
+                    function_history.append(refactored_code)
 
-                refactored_code = refactor_with_errors(
-                    top_n_errors, test_cases, wrapper)
+            do_tests_pass = False
+            test_iteration = 0
+            while not do_tests_pass:
+                print("Test iteration: " + str(test_iteration))
+                if test_iteration >= 5:
+                    print("Test iterations exceeded")
+                    raise BaseException("Test iterations exceeded")
+
+                test_errors = project.get_test_errors(project_copy_path)
+                do_tests_pass = test_errors == None
+                if not do_tests_pass:
+                    test_iteration += 1
+                    failing_tests_history.append(test_errors)
+                    top_n_errors = test_errors[:10]
+                    test_cases = get_test_cases_from_errors(
+                        top_n_errors, project, project_copy_path)
+
+                    refactored_code = refactor_with_test_errors(
+                        top_n_errors, test_cases, wrapper)
+                    patch_code(file_path=target_file,
+                               old_code=function_history[-1],
+                               new_code=refactored_code)
+                    function_history.append(refactored_code)
+
+            # check improvement
+            target_file_functions = compute_cyclomatic_complexity(target_file)
+            improved_function = [fun for fun in target_file_functions if fun.name ==
+                                 most_complex.name][0]
+
+            is_project_improved = is_new_function_improved(
+                most_complex, improved_function)
+            if not is_project_improved:
+                refactored_code = refactor_for_better_improvement(wrapper)
                 patch_code(file_path=target_file,
                            old_code=function_history[-1],
                            new_code=refactored_code)
                 function_history.append(refactored_code)
 
-        # check improvement
-        target_file_functions = compute_cyclomatic_complexity(target_file)
-        improved_function = [fun for fun in target_file_functions if fun.name ==
-                             most_complex.name][0]
-
-        is_project_improved = is_new_function_improved(
-            most_complex, improved_function)
-        if not is_project_improved:
-            refactored_code = refactor_for_better_improvement(wrapper)
-            patch_code(file_path=target_file,
-                       old_code=function_history[-1],
-                       new_code=refactored_code)
-            function_history.append(refactored_code)
-
-    filename = datetime.datetime.now(datetime.timezone.utc).strftime(
-        "%Y-%m-%d-%H-%M-%S") + '.json'
-    wrapper.save_history_to_json('conversation-logs/' + filename)
-    for i, test_run in enumerate(failing_tests_history):
-        print("Test run " + str(i) + ": " +
-              str(len(test_run)) + " failing tests")
+    finally:
+        filename = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%d-%H-%M-%S") + '.json'
+        wrapper.save_history_to_json('conversation-logs/' + filename)
+        for i, lint_run in enumerate(failing_linting_history):
+            print("Linting run " + str(i) + ": " +
+                  str(len(lint_run)) + " failing tests")
+        for i, test_run in enumerate(failing_tests_history):
+            print("Test run " + str(i) + ": " +
+                  str(len(test_run)) + " failing tests")
 
 
 if __name__ == "__main__":

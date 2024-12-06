@@ -5,6 +5,14 @@ import shutil
 import subprocess
 
 
+class LintError(TypedDict):
+    rule_id: str
+    message: str
+    file: str
+    target_line: int
+    erroneous_code: str
+
+
 class TestError(TypedDict):
     expectation: str
     message_stack: str
@@ -49,9 +57,13 @@ class ProjectInterface(ABC):
         pass
 
     @abstractmethod
+    def get_lint_errors(self, project_path: str) -> None | list[LintError]:
+        pass
+
+    @abstractmethod
     def get_test_errors(self, project_path: str) -> None | list[TestError]:
         pass
 
     @abstractmethod
-    def get_test_case(self, error: TestError) -> str | None:
+    def get_test_case(self, error: TestError) -> None | str:
         pass

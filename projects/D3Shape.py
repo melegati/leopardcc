@@ -1,4 +1,4 @@
-from ProjectInterface import ProjectInterface, TestError
+from ProjectInterface import ProjectInterface, LintError, TestError
 import shutil
 import subprocess
 import re
@@ -25,6 +25,41 @@ class D3Shape(ProjectInterface):
     def measure_test_coverage(self, project_path):
         pass
 
+    def get_lint_errors(self, project_path):
+        try:
+            lint_command = 'npx eslint src test --fix --format json'
+            subprocess.run(['cd ' + project_path + ' && ' + lint_command],
+                           shell=True, capture_output=True, text=True, check=True, timeout=7)
+            return None
+
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            if e.stdout is None:
+                raise Exception(
+                    "Linting result does not have stdout to read from")
+
+            lint_info = json.loads(e.stdout)
+            errors: list[LintError] = []
+            for file_object in lint_info:
+                for message in file_object['messages']:
+                    file_path = file_object['filePath']
+                    target_line = message['line']
+                    with open(file_path, 'r') as code_file:
+                        content = code_file.readlines()
+                    erroneous_code = content[target_line - 1]
+
+                    error: LintError = {
+                        'rule_id': message['ruleId'],
+                        'message': message['message'],
+                        'file': file_path,
+                        'target_line': target_line,
+                        'erroneous_code': erroneous_code
+                    }
+                    errors.append(error)
+
+            if len(errors) == 0:
+                return None
+            return errors
+
     def get_test_errors(self, project_path):
         try:
             test_command = 'npx mocha "test/**/*-test.js" --reporter json'
@@ -44,7 +79,7 @@ class D3Shape(ProjectInterface):
                                     'message_stack': failure['err']['stack'],
                                     'test_file': failure['file'],
                                     'target_line': None}
-                line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
+                line_pattern = r' *at Context.<anonymous> \S+d3-shape\D+:(\d+):\d+\)\n'
                 line_match = re.search(line_pattern, failure['err']['stack'])
                 if line_match is not None:
                     error['target_line'] = int(line_match.group(1))
