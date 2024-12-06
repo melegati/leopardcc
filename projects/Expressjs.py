@@ -22,25 +22,6 @@ class Expressjs(ProjectInterface):
                         ' && npm install'],
                        shell=True, capture_output=True, text=True, check=True)
 
-    def measure_test_coverage(self, project_path):
-        try:
-            subprocess.run(['cd ' + project_path +
-                            ' && npx nyc --exclude examples --exclude test --exclude benchmarks --reporter=json-summary npm test'],
-                           shell=True, capture_output=True, text=True, check=True)
-            with open(project_path + '/coverage/coverage-summary.json', "r") as coverage_summary:
-                coverage_info = json.load(coverage_summary)
-
-            coverage_info_cleansed = dict()
-            for module in coverage_info:
-                coverage_info_cleansed[module.replace(project_path, '')] = {
-                    'coverage': coverage_info[module]}
-
-            return coverage_info_cleansed
-
-        except subprocess.CalledProcessError as e:
-            print(f"An error occurred: {e}")
-            return None
-
     def get_test_errors(self, project_path):
         try:
             test_command = 'npx mocha --require test/support/env --reporter json --check-leaks test/ test/acceptance/'

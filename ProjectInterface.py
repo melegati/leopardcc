@@ -53,10 +53,6 @@ class ProjectInterface(ABC):
         return path_of_copy
 
     @abstractmethod
-    def measure_test_coverage(self, project_path: str) -> None | str:
-        pass
-
-    @abstractmethod
     def get_lint_errors(self, project_path: str) -> None | list[LintError]:
         pass
 

@@ -164,7 +164,6 @@ def main() -> None:
     wrapper = OpenAIWrapper(
         api_key=api_key, model="gpt-4o-mini", max_context_length=-1)
 
-    # coverage_info = project.measure_test_coverage(project_path)
     complexity_info = compute_cyclomatic_complexity(project_path + code_dir)
     most_complex = get_most_complex_functions(complexity_info)[1]
     most_complex_code = extract_function_code(most_complex)

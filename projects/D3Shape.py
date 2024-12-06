@@ -22,9 +22,6 @@ class D3Shape(ProjectInterface):
                         ' && yarn install'],
                        shell=True, capture_output=True, text=True, check=True)
 
-    def measure_test_coverage(self, project_path):
-        pass
-
     def get_lint_errors(self, project_path):
         try:
             lint_command = 'npx eslint src test --fix --format json'
