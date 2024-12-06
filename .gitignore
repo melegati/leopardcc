@@ -209,3 +209,4 @@ pip-selfcheck.json
 
 openai-key.txt
 conversation-logs/*.json
+app-logs/*.txt
