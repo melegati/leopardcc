@@ -1,33 +1,40 @@
 import logging
-import datetime
+from logging import Logger
+import time
 
 _logger = None
 
 
-def get_logger():
+def __get_formatter():
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)s: - %(message)s')
+    formatter.converter = time.gmtime
+    return formatter
+
+
+def get_logger() -> Logger:
     """
     Returns the singleton logger instance. Initializes it if it doesn't exist.
     """
     global _logger
     if _logger is None:
-        _logger = logging.getLogger('MyAppLogger')
+        _logger = logging.getLogger('Logger')
         _logger.setLevel(logging.DEBUG)
 
         console_handler = logging.StreamHandler()
-        filename = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%d-%H-%M-%S") + '.txt'
-        file_handler = logging.FileHandler(
-            'app-logs/' + filename)
 
         console_handler.setLevel(logging.INFO)
-        file_handler.setLevel(logging.DEBUG)
 
-        formatter = logging.Formatter(
-            '%(asctime)s %(levelname)s: - %(message)s')
-        console_handler.setFormatter(formatter)
-        file_handler.setFormatter(formatter)
+        console_handler.setFormatter(__get_formatter())
 
         _logger.addHandler(console_handler)
-        _logger.addHandler(file_handler)
 
     return _logger
+
+
+def add_log_file_handler(path: str):
+    file_handler = logging.FileHandler(
+        path)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(__get_formatter())
+    get_logger().addHandler(file_handler)

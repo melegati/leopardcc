@@ -9,7 +9,19 @@ from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
 from ProjectInterface import ProjectInterface, LintError, TestError
-from Logger import get_logger
+from Logger import get_logger, add_log_file_handler
+import os
+
+
+def prepare_log_dir() -> str:
+    timestamp = filename = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%d-%H-%M-%S")
+    log_dir = "logs/" + timestamp
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    add_log_file_handler(log_dir + "/log.txt")
+
+    return log_dir
 
 
 def compute_cyclomatic_complexity(path: str) -> list[FunctionInfo]:
@@ -155,6 +167,7 @@ def patch_code(file_path: str, old_code: str, new_code: str) -> None:
 
 
 def main() -> None:
+    log_dir = prepare_log_dir()
     project = D3Shape()
 
     project_path = project.project_path
@@ -162,8 +175,12 @@ def main() -> None:
 
     with open('openai-key.txt', "r", encoding="utf-8") as key_file:
         api_key = key_file.read()
+    conversation_log_file_path = log_dir + "/conversation.json"
     wrapper = OpenAIWrapper(
-        api_key=api_key, model="gpt-4o-mini", max_context_length=-1)
+        api_key=api_key,
+        log_path=conversation_log_file_path,
+        model="gpt-4o-mini",
+        max_context_length=-1)
 
     complexity_info = compute_cyclomatic_complexity(project_path + code_dir)
     most_complex = get_most_complex_functions(complexity_info)[1]
@@ -263,11 +280,6 @@ def main() -> None:
 
     except Exception as e:
         get_logger().error(e)
-
-    finally:
-        filename = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%d-%H-%M-%S") + '.json'
-        wrapper.save_history_to_json('conversation-logs/' + filename)
 
 
 if __name__ == "__main__":

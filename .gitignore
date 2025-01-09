@@ -208,5 +208,3 @@ pip-selfcheck.json
 .ionide
 
 openai-key.txt
-conversation-logs/*.json
-app-logs/*.txt
