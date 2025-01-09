@@ -14,8 +14,8 @@ class Expressjs(ProjectInterface):
     def code_dir(self):
         return '/lib'
 
-    def after_copy_hook(self) -> None:
-        project_copy_path = self.project_path + '-copy'
+    def after_copy_hook(self, path_suffix) -> None:
+        project_copy_path = self.project_path + path_suffix
         node_modules_dir = '/node_modules'
         shutil.rmtree(project_copy_path + node_modules_dir)
         subprocess.run(['cd ' + project_copy_path +
@@ -27,7 +27,7 @@ class Expressjs(ProjectInterface):
             test_command = 'npx mocha --require test/support/env --reporter json --check-leaks test/ test/acceptance/'
             subprocess.run(['cd ' + project_path + ' && ' + test_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
-            return None
+            return []
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             if e.stdout is None:

@@ -14,8 +14,8 @@ class D3Shape(ProjectInterface):
     def code_dir(self):
         return '/src'
 
-    def after_copy_hook(self) -> None:
-        project_copy_path = self.project_path + '-copy'
+    def after_copy_hook(self, path_suffix) -> None:
+        project_copy_path = self.project_path + path_suffix
         node_modules_dir = '/node_modules'
         shutil.rmtree(project_copy_path + node_modules_dir)
         subprocess.run(['cd ' + project_copy_path +
@@ -27,7 +27,7 @@ class D3Shape(ProjectInterface):
             lint_command = 'npx eslint src test --fix --format json'
             subprocess.run(['cd ' + project_path + ' && ' + lint_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
-            return None
+            return []
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             if e.stdout is None:
@@ -53,8 +53,6 @@ class D3Shape(ProjectInterface):
                     }
                     errors.append(error)
 
-            if len(errors) == 0:
-                return None
             return errors
 
     def get_test_errors(self, project_path):
@@ -62,7 +60,7 @@ class D3Shape(ProjectInterface):
             test_command = 'npx mocha "test/**/*-test.js" --reporter json'
             subprocess.run(['cd ' + project_path + ' && ' + test_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
-            return None
+            return []
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             if e.stdout is None:

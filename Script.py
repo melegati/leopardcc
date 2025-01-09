@@ -140,15 +140,15 @@ def refactor_with_test_errors(errors: list[TestError], test_cases: list[str], wr
 
 
 def refactor_for_better_improvement(wrapper: OpenAIWrapper) -> str:
-    prompt = """The refactored Javascript method you provided lacks improvement in readability and maintainability. 
+    prompt = """The refactored Javascript method you provided lacks improvement in readability and maintainability.
     Identify the section that can be modularized in the refactored method."""
 
     wrapper.send_message(prompt)
 
     prompt = """Please rectify the refactored Javascript method to enhance its readability and maintainability by
-    utilizing information about the section that can be modularized. 
+    utilizing information about the section that can be modularized.
     The method you provide should be syntactically identical to the original method.
-    Provide the full implementation of the improved Javascript method within a code block. 
+    Provide the full implementation of the improved Javascript method within a code block.
     Avoid providing explanations in natural language."""
 
     improved_code = wrapper.send_message(prompt)
@@ -170,7 +170,7 @@ def main() -> None:
     log_dir = prepare_log_dir()
     project = D3Shape()
 
-    project_path = project.project_path
+    original_path = project.project_path
     code_dir = project.code_dir
 
     with open('openai-key.txt', "r", encoding="utf-8") as key_file:
@@ -182,8 +182,8 @@ def main() -> None:
         model="gpt-4o-mini",
         max_context_length=-1)
 
-    complexity_info = compute_cyclomatic_complexity(project_path + code_dir)
-    most_complex = get_most_complex_functions(complexity_info)[1]
+    complexity_info = compute_cyclomatic_complexity(original_path + code_dir)
+    most_complex = get_most_complex_functions(complexity_info)[0]
     get_logger().info("Refactoring function " + most_complex.name +
                       " from file " + most_complex.filename +
                       " with CC: " + str(most_complex.cyclomatic_complexity))
@@ -193,10 +193,10 @@ def main() -> None:
 
     refactored_code = refactor_function(most_complex_code, wrapper)
 
-    project_copy_path = project.create_copy()
+    dirty_path = project.dirty_path
 
     target_file = most_complex.filename.replace(
-        project_path, project_copy_path)
+        original_path, dirty_path)
     patch_code(file_path=target_file,
                old_code=most_complex_code,
                new_code=refactored_code)
@@ -204,8 +204,6 @@ def main() -> None:
 
     is_project_improved = False
     improvement_iteration = 0
-    failing_linting_history: list[list[LintError]] = []
-    failing_tests_history: list[list[TestError]] = []
     try:
         while not is_project_improved:
             get_logger().info("Improvement iteration: " + str(improvement_iteration))
@@ -220,13 +218,12 @@ def main() -> None:
                 if linting_iteration >= 5:
                     raise BaseException("Lint iterations exceeded")
 
-                lint_errors = project.get_lint_errors(project_copy_path)
-                does_linting_pass = lint_errors == None
+                lint_errors = project.get_lint_errors(project.dirty_path)
+                does_linting_pass = len(lint_errors) == 0
                 if not does_linting_pass:
                     linting_iteration += 1
-                    get_logger().info(str(len(lint_errors)) + " linter errors")
+                    get_logger().info(str(len(lint_errors)) + " linting errors")
                     get_logger().debug(lint_errors)
-                    failing_linting_history.append(lint_errors)
 
                     top_n_errors = lint_errors[:10]
                     refactored_code = refactor_with_lint_errors(
@@ -243,17 +240,16 @@ def main() -> None:
                 if test_iteration >= 5:
                     raise BaseException("Test iterations exceeded")
 
-                test_errors = project.get_test_errors(project_copy_path)
+                test_errors = project.get_test_errors(dirty_path)
                 do_tests_pass = test_errors == None
                 if not do_tests_pass:
                     test_iteration += 1
                     get_logger().info(str(len(test_errors)) + " test errors")
                     get_logger().debug(test_errors)
-                    failing_tests_history.append(test_errors)
 
                     top_n_errors = test_errors[:10]
                     test_cases = get_test_cases_from_errors(
-                        top_n_errors, project, project_copy_path)
+                        top_n_errors, project, dirty_path)
 
                     refactored_code = refactor_with_test_errors(
                         top_n_errors, test_cases, wrapper)
