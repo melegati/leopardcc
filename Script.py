@@ -274,7 +274,7 @@ def main() -> None:
                            new_code=refactored_code)
                 function_history.append(refactored_code)
 
-    except Exception as e:
+    except BaseException as e:
         get_logger().error(e)
 
 
