@@ -8,7 +8,7 @@ from lizard import FunctionInfo
 from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
-from ProjectInterface import ProjectInterface, LintError, TestError
+from Interfaces import ProjectInterface, LintError, TestError
 from Logger import get_logger, add_log_file_handler
 import os
 

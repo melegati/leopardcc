@@ -1,4 +1,4 @@
-from ProjectInterface import ProjectInterface, LintError, TestError
+from Interfaces import ProjectInterface, LintError, TestError
 import shutil
 import subprocess
 import re

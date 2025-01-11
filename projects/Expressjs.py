@@ -1,4 +1,4 @@
-from ProjectInterface import ProjectInterface, TestError
+from Interfaces import ProjectInterface, TestError
 import shutil
 import subprocess
 import re
