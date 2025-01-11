@@ -19,9 +19,21 @@ def prepare_log_dir() -> str:
     log_dir = "logs/" + timestamp
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    add_log_file_handler(log_dir + "/log.txt")
 
     return log_dir
+
+
+def prepare_conversation_wrapper(log_dir: str) -> OpenAIWrapper:
+    with open('openai-key.txt', "r", encoding="utf-8") as key_file:
+        api_key = key_file.read()
+    conversation_log_file_path = log_dir + "/conversation.json"
+    wrapper = OpenAIWrapper(
+        api_key=api_key,
+        log_path=conversation_log_file_path,
+        model="gpt-4o-mini",
+        max_context_length=-1)
+
+    return wrapper
 
 
 def compute_cyclomatic_complexity(path: str) -> list[FunctionInfo]:
@@ -50,7 +62,7 @@ def extract_function_code(function: FunctionInfo) -> str:
     return function_code
 
 
-def get_test_cases_from_errors(errors: list[TestError], project: ProjectInterface, project_path: str) -> list[str]:
+def get_test_cases_from_errors(errors: list[TestError], project: ProjectInterface) -> list[str]:
     test_cases: list[str] = []
     for error in errors:
         test_case = project.get_test_case(error)
@@ -166,113 +178,113 @@ def patch_code(file_path: str, old_code: str, new_code: str) -> None:
         file.write(filedata)
 
 
-def main() -> None:
-    log_dir = prepare_log_dir()
-    project = D3Shape()
+# TODO (LS-2025-01-11) Break me down, refactor me
+def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: ProjectInterface):
+    get_logger().info("Refactoring function " + function.name +
+                      " from file " + function.filename +
+                      " with CC: " + str(function.cyclomatic_complexity))
 
-    original_path = project.project_path
-    code_dir = project.code_dir
+    code = extract_function_code(function)
+    function_history: list[str] = [code]
 
-    with open('openai-key.txt', "r", encoding="utf-8") as key_file:
-        api_key = key_file.read()
-    conversation_log_file_path = log_dir + "/conversation.json"
-    wrapper = OpenAIWrapper(
-        api_key=api_key,
-        log_path=conversation_log_file_path,
-        model="gpt-4o-mini",
-        max_context_length=-1)
+    refactored_code = refactor_function(code, wrapper)
 
-    complexity_info = compute_cyclomatic_complexity(original_path + code_dir)
-    most_complex = get_most_complex_functions(complexity_info)[0]
-    get_logger().info("Refactoring function " + most_complex.name +
-                      " from file " + most_complex.filename +
-                      " with CC: " + str(most_complex.cyclomatic_complexity))
-
-    most_complex_code = extract_function_code(most_complex)
-    function_history: list[str] = [most_complex_code]
-
-    refactored_code = refactor_function(most_complex_code, wrapper)
-
-    dirty_path = project.dirty_path
-
-    target_file = most_complex.filename.replace(
-        original_path, dirty_path)
+    target_file = function.filename.replace(
+        project.project_path, project.dirty_path)
     patch_code(file_path=target_file,
-               old_code=most_complex_code,
+               old_code=code,
                new_code=refactored_code)
     function_history.append(refactored_code)
 
     is_project_improved = False
     improvement_iteration = 0
-    try:
-        while not is_project_improved:
-            get_logger().info("Improvement iteration: " + str(improvement_iteration))
-            if improvement_iteration >= 5:
-                raise BaseException("Improvement iterations exceeded")
-            improvement_iteration += 1
 
-            does_linting_pass = False
-            linting_iteration = 0
-            while not does_linting_pass:
-                get_logger().info("Linting iteration: " + str(linting_iteration))
-                if linting_iteration >= 5:
-                    raise BaseException("Lint iterations exceeded")
+    while not is_project_improved:
+        get_logger().info("Improvement iteration: " + str(improvement_iteration))
+        if improvement_iteration >= 5:
+            raise BaseException("Improvement iterations exceeded")
+        improvement_iteration += 1
 
-                lint_errors = project.get_lint_errors(project.dirty_path)
-                does_linting_pass = len(lint_errors) == 0
-                if not does_linting_pass:
-                    linting_iteration += 1
-                    get_logger().info(str(len(lint_errors)) + " linting errors")
-                    get_logger().debug(lint_errors)
+        does_linting_pass = False
+        linting_iteration = 0
+        while not does_linting_pass:
+            get_logger().info("Linting iteration: " + str(linting_iteration))
+            if linting_iteration >= 2:
+                raise BaseException("Lint iterations exceeded")
 
-                    top_n_errors = lint_errors[:10]
-                    refactored_code = refactor_with_lint_errors(
-                        top_n_errors, wrapper)
-                    patch_code(file_path=target_file,
-                               old_code=function_history[-1],
-                               new_code=refactored_code)
-                    function_history.append(refactored_code)
+            lint_errors = project.get_lint_errors(project.dirty_path)
+            does_linting_pass = len(lint_errors) == 0
+            if not does_linting_pass:
+                linting_iteration += 1
+                get_logger().info(str(len(lint_errors)) + " linting errors")
+                get_logger().debug(lint_errors)
 
-            do_tests_pass = False
-            test_iteration = 0
-            while not do_tests_pass:
-                get_logger().info("Test iteration: " + str(test_iteration))
-                if test_iteration >= 5:
-                    raise BaseException("Test iterations exceeded")
-
-                test_errors = project.get_test_errors(dirty_path)
-                do_tests_pass = test_errors == None
-                if not do_tests_pass:
-                    test_iteration += 1
-                    get_logger().info(str(len(test_errors)) + " test errors")
-                    get_logger().debug(test_errors)
-
-                    top_n_errors = test_errors[:10]
-                    test_cases = get_test_cases_from_errors(
-                        top_n_errors, project, dirty_path)
-
-                    refactored_code = refactor_with_test_errors(
-                        top_n_errors, test_cases, wrapper)
-                    patch_code(file_path=target_file,
-                               old_code=function_history[-1],
-                               new_code=refactored_code)
-                    function_history.append(refactored_code)
-
-            # check improvement
-            target_file_functions = compute_cyclomatic_complexity(target_file)
-            improved_function = [fun for fun in target_file_functions if fun.name ==
-                                 most_complex.name][0]
-
-            is_project_improved = is_new_function_improved(
-                most_complex, improved_function)
-            get_logger().info("Improved function has CC: " +
-                              str(improved_function.cyclomatic_complexity))
-            if not is_project_improved:
-                refactored_code = refactor_for_better_improvement(wrapper)
+                top_lint_errors = lint_errors[:10]
+                refactored_code = refactor_with_lint_errors(
+                    top_lint_errors, wrapper)
                 patch_code(file_path=target_file,
                            old_code=function_history[-1],
                            new_code=refactored_code)
                 function_history.append(refactored_code)
+
+        do_tests_pass = False
+        test_iteration = 0
+        while not do_tests_pass:
+            get_logger().info("Test iteration: " + str(test_iteration))
+            if test_iteration >= 5:
+                raise BaseException("Test iterations exceeded")
+
+            test_errors = project.get_test_errors(project.dirty_path)
+            do_tests_pass = test_errors == None
+            if not do_tests_pass:
+                test_iteration += 1
+                get_logger().info(str(len(test_errors)) + " test errors")
+                get_logger().debug(test_errors)
+
+                top_test_errors = test_errors[:10]
+                test_cases = get_test_cases_from_errors(
+                    top_test_errors, project)
+
+                refactored_code = refactor_with_test_errors(
+                    top_test_errors, test_cases, wrapper)
+                patch_code(file_path=target_file,
+                           old_code=function_history[-1],
+                           new_code=refactored_code)
+                function_history.append(refactored_code)
+
+        # check improvement
+        target_file_functions = compute_cyclomatic_complexity(target_file)
+        improved_function = [
+            fun for fun in target_file_functions if fun.name == function.name][0]
+
+        is_project_improved = is_new_function_improved(
+            function, improved_function)
+        get_logger().info("Improved function has CC: " +
+                          str(improved_function.cyclomatic_complexity))
+        if not is_project_improved:
+            refactored_code = refactor_for_better_improvement(wrapper)
+            patch_code(file_path=target_file,
+                       old_code=function_history[-1],
+                       new_code=refactored_code)
+            function_history.append(refactored_code)
+
+
+def main() -> None:
+    project = D3Shape()
+
+    original_path = project.project_path
+    code_dir = project.code_dir
+
+    log_dir = prepare_log_dir()
+    add_log_file_handler(log_dir + "/log.txt")
+
+    wrapper = prepare_conversation_wrapper(log_dir)
+
+    complexity_info = compute_cyclomatic_complexity(original_path + code_dir)
+    most_complex = get_most_complex_functions(complexity_info)[0]
+
+    try:
+        improve_function(most_complex, wrapper, project)
 
     except BaseException as e:
         get_logger().error(e)
