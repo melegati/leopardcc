@@ -8,7 +8,8 @@ from lizard import FunctionInfo
 from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
-from Interfaces import ProjectInterface, LintError, TestError
+from prompt_strategies.ChoiEtAl import ChoiEtAl
+from Interfaces import PromptStrategyInterface, ProjectInterface, LintError, TestError
 from Logger import get_logger, add_log_file_handler
 import os
 
@@ -84,85 +85,39 @@ def __remove_code_block_backticks(code: str) -> str:
     return no_backticks
 
 
-def refactor_function(function_code: str, wrapper: OpenAIWrapper) -> str:
-    prompt = """```javascript
-    {code}
-    ```
-    Refactor the provided javascript method to enhance its readability and maintainability.
-    You can assume that the given method is functionally correct. Ensure that you do not alter
-    the external behavior of the method, maintaining both syntactic and semantic correctness.
-    Provide the javascript method within a code block. Avoid using natural language explanations.
-    """.format(code=function_code)
+def refactor_function(code: str, wrapper: OpenAIWrapper, strategy: PromptStrategyInterface) -> str:
+    prompt = strategy.initial_prompt(code)
 
     improved_code = wrapper.send_message(prompt)
     code_without_backticks = __remove_code_block_backticks(improved_code)
     return code_without_backticks
 
 
-def refactor_with_lint_errors(errors: list[LintError], wrapper: OpenAIWrapper) -> str:
-    messages = map(lambda error: "Error: {message} \nViolated rule: {rule}\nErroneous code: {code}".format(
-        message=error['message'], rule=error['rule_id'], code=error['erroneous_code']), errors)
-    message_stack = '\n\n'.join(messages)
-
-    prompt = """The refactored JavaScript method you provided does not pass the linting check.
-    The linting messages and the respective code look like:
-    ```
-    {message_stack}
-    ```
-    Explain why your code does not pass the linting check.
-    """.format(message_stack=message_stack)
-
+def refactor_with_lint_errors(errors: list[LintError], wrapper: OpenAIWrapper, strategy: PromptStrategyInterface) -> str:
+    prompt = strategy.linting_explanation_prompt(errors)
     explanation = wrapper.send_message(prompt)
 
-    prompt = """Fix your method by utilizing the error message, the linting messages, the erroneous code,
-    your explanation and the original method. Provide the javascript method within a code block.
-    Do not explain anything in natural language."""
-
+    prompt = strategy.linting_fix_prompt()
     improved_code = wrapper.send_message(prompt)
     code_without_backticks = __remove_code_block_backticks(improved_code)
     return code_without_backticks
 
 
-def refactor_with_test_errors(errors: list[TestError], test_cases: list[str], wrapper: OpenAIWrapper) -> str:
-    stacks = map(lambda error: "{expectation}: {message_stack}".format(
-        expectation=error['expectation'], message_stack=error['message_stack']), errors)
-    stack_united = '\n\n'.join(list(stacks))
-    test_cases_united = '\n\n'.join(test_cases)
-
-    prompt = """The refactored JavaScript method you provided does not pass the unit test suite.
-    The error messages and the call stack look like:
-    ```
-    {message_stack}
-    ```
-    Failing test(s) looks like:
-    ```
-    {tests}
-    ```
-    Explain why your code does not pass the unit tests.""".format(message_stack=stack_united, tests=test_cases_united)
-
+def refactor_with_test_errors(errors: list[TestError], test_cases: list[str], wrapper: OpenAIWrapper, strategy: PromptStrategyInterface) -> str:
+    prompt = strategy.test_explanation_prompt(errors, test_cases)
     explanation = wrapper.send_message(prompt)
 
-    prompt = """Fix your method by utilizing the error message, the call stack, the failing test,
-    your explanation and the original method. Provide the javascript method within a code block.
-    Do not explain anything in natural language."""
-
+    prompt = strategy.test_fix_prompt()
     improved_code = wrapper.send_message(prompt)
     code_without_backticks = __remove_code_block_backticks(improved_code)
     return code_without_backticks
 
 
-def refactor_for_better_improvement(wrapper: OpenAIWrapper) -> str:
-    prompt = """The refactored Javascript method you provided lacks improvement in readability and maintainability.
-    Identify the section that can be modularized in the refactored method."""
-
+def refactor_for_better_improvement(wrapper: OpenAIWrapper, strategy: PromptStrategyInterface) -> str:
+    prompt = strategy.better_improvement_explanation_prompt()
     wrapper.send_message(prompt)
 
-    prompt = """Please rectify the refactored Javascript method to enhance its readability and maintainability by
-    utilizing information about the section that can be modularized.
-    The method you provide should be syntactically identical to the original method.
-    Provide the full implementation of the improved Javascript method within a code block.
-    Avoid providing explanations in natural language."""
-
+    prompt = strategy.better_improvement_fix_prompt()
     improved_code = wrapper.send_message(prompt)
     code_without_backticks = __remove_code_block_backticks(improved_code)
     return code_without_backticks
@@ -179,7 +134,7 @@ def patch_code(file_path: str, old_code: str, new_code: str) -> None:
 
 
 # TODO (LS-2025-01-11) Break me down, refactor me
-def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: ProjectInterface):
+def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: ProjectInterface, strategy: PromptStrategyInterface):
     get_logger().info("Refactoring function " + function.name +
                       " from file " + function.filename +
                       " with CC: " + str(function.cyclomatic_complexity))
@@ -187,7 +142,7 @@ def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: Pr
     code = extract_function_code(function)
     function_history: list[str] = [code]
 
-    refactored_code = refactor_function(code, wrapper)
+    refactored_code = refactor_function(code, wrapper, strategy)
 
     target_file = function.filename.replace(
         project.project_path, project.dirty_path)
@@ -221,7 +176,7 @@ def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: Pr
 
                 top_lint_errors = lint_errors[:10]
                 refactored_code = refactor_with_lint_errors(
-                    top_lint_errors, wrapper)
+                    top_lint_errors, wrapper, strategy)
                 patch_code(file_path=target_file,
                            old_code=function_history[-1],
                            new_code=refactored_code)
@@ -246,7 +201,7 @@ def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: Pr
                     top_test_errors, project)
 
                 refactored_code = refactor_with_test_errors(
-                    top_test_errors, test_cases, wrapper)
+                    top_test_errors, test_cases, wrapper, strategy)
                 patch_code(file_path=target_file,
                            old_code=function_history[-1],
                            new_code=refactored_code)
@@ -262,7 +217,8 @@ def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: Pr
         get_logger().info("Improved function has CC: " +
                           str(improved_function.cyclomatic_complexity))
         if not is_project_improved:
-            refactored_code = refactor_for_better_improvement(wrapper)
+            refactored_code = refactor_for_better_improvement(
+                wrapper, strategy)
             patch_code(file_path=target_file,
                        old_code=function_history[-1],
                        new_code=refactored_code)
@@ -271,6 +227,7 @@ def improve_function(function: FunctionInfo, wrapper: OpenAIWrapper, project: Pr
 
 def main() -> None:
     project = D3Shape()
+    strategy = ChoiEtAl()
 
     original_path = project.project_path
     code_dir = project.code_dir
@@ -284,7 +241,7 @@ def main() -> None:
     most_complex = get_most_complex_functions(complexity_info)[0]
 
     try:
-        improve_function(most_complex, wrapper, project)
+        improve_function(most_complex, wrapper, project, strategy)
 
     except BaseException as e:
         get_logger().error(e)
