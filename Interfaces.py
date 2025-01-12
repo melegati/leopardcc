@@ -70,14 +70,19 @@ class ProjectInterface(ABC):
 
     @abstractmethod
     def get_lint_errors(self, project_path: str) -> list[LintError]:
+        """Checks source code for stylistic and programmatic errors and returns them.
+        If no errors were found it returns an empty list."""
         pass
 
     @abstractmethod
     def get_test_errors(self, project_path: str) -> list[TestError]:
+        """Runs projects unit tests and returns list of failing tests.
+        If no test fails it returns an empty list."""
         pass
 
     @abstractmethod
     def get_test_case(self, error: TestError) -> None | str:
+        """Returns the test code for a given failing test case."""
         pass
 
 
