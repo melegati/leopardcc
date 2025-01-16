@@ -1,8 +1,12 @@
+from lizard import FunctionInfo  # type: ignore
 from abc import ABC, abstractmethod
 from typing import TypedDict
 import os
 import shutil
 import subprocess
+
+
+LizardResult = FunctionInfo
 
 
 class LintError(TypedDict):
@@ -26,7 +30,7 @@ class ProjectInterface(ABC):
 
     @property
     @abstractmethod
-    def project_path(self) -> str:
+    def path(self) -> str:
         """The path to the root folder of the project"""
         pass
 
@@ -41,14 +45,14 @@ class ProjectInterface(ABC):
         pass
 
     def __create_copy(self, path_suffix: str) -> str:
-        destination_path = self.project_path + path_suffix
+        destination_path = self.path + path_suffix
 
         if os.path.exists(destination_path):
             shutil.rmtree(destination_path)
 
         ignore_patterns = shutil.ignore_patterns('.git')
         path_of_copy = shutil.copytree(
-            self.project_path, destination_path, dirs_exist_ok=True, ignore=ignore_patterns)
+            self.path, destination_path, dirs_exist_ok=True, ignore=ignore_patterns)
 
         self.after_copy_hook(path_suffix)
 
@@ -56,6 +60,7 @@ class ProjectInterface(ABC):
 
     @property
     def dirty_path(self) -> str:
+        """The path to the 'dirty' copy of the project. This is where code is being manipulated and tested."""
         if self.__dirty_path is None:
             self.__dirty_path = self.__create_copy('-dirty')
 
@@ -63,19 +68,20 @@ class ProjectInterface(ABC):
 
     @property
     def target_path(self) -> str:
+        """The path to the improved version of the project. This is where only verified changes are appplied."""
         if self.__target_path is None:
             self.__target_path = self.__create_copy('-target')
 
         return self.__target_path
 
     @abstractmethod
-    def get_lint_errors(self, project_path: str) -> list[LintError]:
+    def get_lint_errors(self) -> list[LintError]:
         """Checks source code for stylistic and programmatic errors and returns them.
         If no errors were found it returns an empty list."""
         pass
 
     @abstractmethod
-    def get_test_errors(self, project_path: str) -> list[TestError]:
+    def get_test_errors(self) -> list[TestError]:
         """Runs projects unit tests and returns list of failing tests.
         If no test fails it returns an empty list."""
         pass

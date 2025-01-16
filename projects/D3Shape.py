@@ -7,7 +7,7 @@ import json
 
 class D3Shape(ProjectInterface):
     @property
-    def project_path(self):
+    def path(self):
         return '/media/lebkuchen/storage-disk/Repos/d3-shape'
 
     @property
@@ -15,17 +15,17 @@ class D3Shape(ProjectInterface):
         return '/src'
 
     def after_copy_hook(self, path_suffix) -> None:
-        project_copy_path = self.project_path + path_suffix
+        project_copy_path = self.path + path_suffix
         node_modules_dir = '/node_modules'
         shutil.rmtree(project_copy_path + node_modules_dir)
         subprocess.run(['cd ' + project_copy_path +
                         ' && yarn install'],
                        shell=True, capture_output=True, text=True, check=True)
 
-    def get_lint_errors(self, project_path):
+    def get_lint_errors(self):
         try:
             lint_command = 'npx eslint src test --fix --format json'
-            subprocess.run(['cd ' + project_path + ' && ' + lint_command],
+            subprocess.run(['cd ' + self.dirty_path + ' && ' + lint_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
             return []
 
@@ -55,10 +55,10 @@ class D3Shape(ProjectInterface):
 
             return errors
 
-    def get_test_errors(self, project_path):
+    def get_test_errors(self):
         try:
             test_command = 'npx mocha "test/**/*-test.js" --reporter json'
-            subprocess.run(['cd ' + project_path + ' && ' + test_command],
+            subprocess.run(['cd ' + self.dirty_path + ' && ' + test_command],
                            shell=True, capture_output=True, text=True, check=True, timeout=7)
             return []
 

@@ -4,8 +4,10 @@ from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
 from prompt_strategies.ChoiEtAl import ChoiEtAl
 from Logger import get_logger, add_log_file_handler
-from ProjectHelper import compute_cyclomatic_complexity, get_most_complex_functions
-from Function import improve_function
+from ProjectHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity
+from Refactorer import improve_function
+from Function import Function
+from interfaces.NotImprovableException import NotImprovableException
 import os
 
 
@@ -42,19 +44,35 @@ def main() -> None:
     project = D3Shape()
     strategy = ChoiEtAl()
 
-    original_path = project.project_path
-    code_dir = project.code_dir
-
     log_dir = prepare_log_dir()
     add_log_file_handler(log_dir + "/log.txt")
 
     wrapper = prepare_conversation_wrapper(log_dir)
 
-    complexity_info = compute_cyclomatic_complexity(original_path + code_dir)
-    most_complex = get_most_complex_functions(complexity_info)[0]
+    complexity_info = compute_cyclomatic_complexity(
+        project.path + project.code_dir)
+    most_complex = get_functions_sorted_by_complexity(complexity_info)
+
+    improved_functions: list[Function] = list()
+    disregarded_functions: list[Function] = list()
 
     try:
-        improve_function(most_complex, wrapper, project, strategy)
+        for lizard_result in most_complex[:4]:
+            # TODO (LS-2025-01-16): Create metrics reporter - How have metrics changed over time? How has avg_cc changed after each iteration?
+
+            function = Function(lizard_result, project, wrapper, strategy)
+            try:
+                improve_function(function, improved_functions,
+                                 disregarded_functions)
+
+                get_logger().info("Function successfully improved")
+                function.apply_changes_to_target()
+                improved_functions.append(function)
+
+            except NotImprovableException as e:
+                get_logger().info("Function could not be improved, disregarding")
+                function.restore_original_code()
+                disregarded_functions.append(function)
 
     except BaseException as e:
         get_logger().error(e)
