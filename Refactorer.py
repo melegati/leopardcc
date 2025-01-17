@@ -1,6 +1,8 @@
 from OpenAIWrapper import OpenAIWrapper
-from Interfaces import PromptStrategyInterface, ProjectInterface, LizardResult
-from Function import Function
+from interfaces.PromptStrategyInterface import PromptStrategyInterface
+from interfaces.ProjectInterface import ProjectInterface
+from interfaces.LizardResult import LizardResult
+from interfaces.Function import Function
 from Logger import get_logger
 from ProjectHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity, get_most_complex_without_ignored
 from interfaces.NotImprovableException import NotImprovableException

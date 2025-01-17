@@ -6,7 +6,7 @@ from prompt_strategies.ChoiEtAl import ChoiEtAl
 from Logger import get_logger, add_log_file_handler
 from ProjectHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity
 from Refactorer import improve_function
-from Function import Function
+from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException
 import os
 

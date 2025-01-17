@@ -1,7 +1,11 @@
 import functools
 import operator
 from OpenAIWrapper import OpenAIWrapper
-from Interfaces import ProjectInterface, PromptStrategyInterface, LintError, TestError, LizardResult
+from ProjectInterface import ProjectInterface
+from PromptStrategyInterface import PromptStrategyInterface
+from LizardResult import LizardResult
+from LintError import LintError
+from TestError import TestError
 
 
 def __extract_function_code__(function: LizardResult) -> str:

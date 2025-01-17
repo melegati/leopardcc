@@ -1,27 +1,8 @@
-from lizard import FunctionInfo  # type: ignore
 from abc import ABC, abstractmethod
-from typing import TypedDict
 import os
 import shutil
-import subprocess
-
-
-LizardResult = FunctionInfo
-
-
-class LintError(TypedDict):
-    rule_id: str
-    message: str
-    file: str
-    target_line: int
-    erroneous_code: str
-
-
-class TestError(TypedDict):
-    expectation: str
-    message_stack: str
-    test_file: str
-    target_line: int | None
+from LintError import LintError
+from TestError import TestError
 
 
 class ProjectInterface(ABC):
@@ -89,41 +70,4 @@ class ProjectInterface(ABC):
     @abstractmethod
     def get_test_case(self, error: TestError) -> None | str:
         """Returns the test code for a given failing test case."""
-        pass
-
-
-class PromptStrategyInterface(ABC):
-    @abstractmethod
-    def initial_prompt(self, code: str) -> str:
-        """Ask for refactoring a function to achieve a better maintainability and readability."""
-        pass
-
-    @abstractmethod
-    def linting_explanation_prompt(self, errors: list[LintError]) -> str:
-        """Ask for an explanation why given linting errors were thrown."""
-        pass
-
-    @abstractmethod
-    def linting_fix_prompt(self) -> str:
-        """Ask for code that fixes linting errors."""
-        pass
-
-    @abstractmethod
-    def test_explanation_prompt(self, errors: list[TestError], test_cases: list[str]) -> str:
-        """Ask for an explanation why given tests with their test cases fail."""
-        pass
-
-    @abstractmethod
-    def test_fix_prompt(self) -> str:
-        """Ask for code that fixes tests."""
-        pass
-
-    @abstractmethod
-    def better_improvement_explanation_prompt(self) -> str:
-        """Ask for an explanation of how the code can be improved further."""
-        pass
-
-    @abstractmethod
-    def better_improvement_fix_prompt(self) -> str:
-        """Ask for code that further improves the maintainability and readability."""
         pass

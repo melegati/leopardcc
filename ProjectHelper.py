@@ -1,6 +1,8 @@
 import lizard  # type: ignore
-from Interfaces import TestError, ProjectInterface, LizardResult
-from Function import Function
+from interfaces.TestError import TestError
+from interfaces.ProjectInterface import ProjectInterface
+from interfaces.LizardResult import LizardResult
+from interfaces.Function import Function
 
 
 def compute_cyclomatic_complexity(path: str) -> list[LizardResult]:

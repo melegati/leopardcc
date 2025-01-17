@@ -1,4 +1,6 @@
-from Interfaces import PromptStrategyInterface, LintError, TestError
+from interfaces.PromptStrategyInterface import PromptStrategyInterface
+from interfaces.LintError import LintError
+from interfaces.TestError import TestError
 
 
 class ChoiEtAl(PromptStrategyInterface):

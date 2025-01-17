@@ -1,4 +1,5 @@
-from Interfaces import ProjectInterface, TestError
+from interfaces.ProjectInterface import ProjectInterface
+from interfaces.TestError import TestError
 import shutil
 import subprocess
 import re
@@ -23,6 +24,7 @@ class Expressjs(ProjectInterface):
                        shell=True, capture_output=True, text=True, check=True)
 
     def get_lint_errors(self):
+        # TODO (LS-2025-01-17): Add linting logic
         pass
 
     def get_test_errors(self):
