@@ -4,7 +4,7 @@ from interfaces.TestError import TestError
 
 
 class ChoiEtAl(PromptStrategyInterface):
-    """Prompts adapted to JavaScript, taken from Choi et al. 2024: 'Iterative Refactoring of Real-World Open-Source Programs with Large Language Models'"""
+    """Prompts adapted to JavaScript, taken from Choi, Jinsu et al. 2024: 'Iterative Refactoring of Real-World Open-Source Programs with Large Language Models'"""
 
     def initial_prompt(self, code: str) -> str:
         prompt = """```javascript

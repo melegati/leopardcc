@@ -2,7 +2,8 @@ import datetime
 from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
-from prompt_strategies.ChoiEtAl import ChoiEtAl
+from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
+from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from Logger import get_logger, add_log_file_handler
 from ProjectHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity
 from Refactorer import improve_function
@@ -42,7 +43,8 @@ def prepare_conversation_wrapper(log_dir: str) -> OpenAIWrapper:
 
 def main() -> None:
     project = D3Shape()
-    strategy = ChoiEtAl()
+    prompt_strategy = ChoiEtAlPrompt()
+    verification_strategy = ChoiEtAlVerification()
 
     log_dir = prepare_log_dir()
     add_log_file_handler(log_dir + "/log.txt")
@@ -60,10 +62,11 @@ def main() -> None:
         for lizard_result in most_complex[:4]:
             # TODO (LS-2025-01-16): Create metrics reporter - How have metrics changed over time? How has avg_cc changed after each iteration?
 
-            function = Function(lizard_result, project, wrapper, strategy)
+            function = Function(lizard_result, project,
+                                wrapper, prompt_strategy)
             try:
-                improve_function(function, improved_functions,
-                                 disregarded_functions)
+                improve_function(function, improved_functions +
+                                 disregarded_functions, verification_strategy)
 
                 get_logger().info("Function successfully improved")
                 function.apply_changes_to_target()
