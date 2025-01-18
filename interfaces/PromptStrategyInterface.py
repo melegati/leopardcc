@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from LintError import LintError
-from TestError import TestError
+from .LintError import LintError
+from .TestError import TestError
 
 
 class PromptStrategyInterface(ABC):

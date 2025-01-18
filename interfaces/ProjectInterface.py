@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 import os
 import shutil
-from LintError import LintError
-from TestError import TestError
+from .LintError import LintError
+from .TestError import TestError
+import re
 
 
 class ProjectInterface(ABC):
@@ -16,7 +17,15 @@ class ProjectInterface(ABC):
         pass
 
     @property
-    @abstractmethod
+    def name(self) -> str:
+        after_last_slash_pattern = r'([^\/]+)$'
+        name_match = re.search(after_last_slash_pattern, self.path)
+        if name_match is not None:
+            return name_match.group(1)
+        return self.path
+
+    @ property
+    @ abstractmethod
     def code_dir(self) -> str:
         """The directory inside the project which holds the source code (e. g. 'src', 'lib', ...)"""
         pass
@@ -39,7 +48,7 @@ class ProjectInterface(ABC):
 
         return path_of_copy
 
-    @property
+    @ property
     def dirty_path(self) -> str:
         """The path to the 'dirty' copy of the project. This is where code is being manipulated and tested."""
         if self.__dirty_path is None:
@@ -47,7 +56,7 @@ class ProjectInterface(ABC):
 
         return self.__dirty_path
 
-    @property
+    @ property
     def target_path(self) -> str:
         """The path to the improved version of the project. This is where only verified changes are appplied."""
         if self.__target_path is None:
@@ -55,19 +64,19 @@ class ProjectInterface(ABC):
 
         return self.__target_path
 
-    @abstractmethod
+    @ abstractmethod
     def get_lint_errors(self) -> list[LintError]:
         """Checks source code for stylistic and programmatic errors and returns them.
         If no errors were found it returns an empty list."""
         pass
 
-    @abstractmethod
+    @ abstractmethod
     def get_test_errors(self) -> list[TestError]:
         """Runs projects unit tests and returns list of failing tests.
         If no test fails it returns an empty list."""
         pass
 
-    @abstractmethod
+    @ abstractmethod
     def get_test_case(self, error: TestError) -> None | str:
         """Returns the test code for a given failing test case."""
         pass

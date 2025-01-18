@@ -1,4 +1,5 @@
 import lizard  # type: ignore
+from statistics import mean
 from interfaces.TestError import TestError
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.LizardResult import LizardResult
@@ -15,6 +16,18 @@ def compute_cyclomatic_complexity(path: str) -> list[LizardResult]:
             functions.append(function)
 
     return functions
+
+
+def compute_avg_cc_for_project(path: str) -> float:
+    functions = compute_cyclomatic_complexity(path)
+
+    complexities: list[int] = []
+    for fun in functions:
+        complexities.append(fun.cyclomatic_complexity)
+
+    avg_cc = mean(complexities)
+
+    return avg_cc
 
 
 def get_functions_sorted_by_complexity(functions: list[LizardResult]) -> list[LizardResult]:

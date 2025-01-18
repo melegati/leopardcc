@@ -1,11 +1,11 @@
 import functools
 import operator
 from OpenAIWrapper import OpenAIWrapper
-from ProjectInterface import ProjectInterface
-from PromptStrategyInterface import PromptStrategyInterface
-from LizardResult import LizardResult
-from LintError import LintError
-from TestError import TestError
+from .ProjectInterface import ProjectInterface
+from .PromptStrategyInterface import PromptStrategyInterface
+from .LizardResult import LizardResult
+from .LintError import LintError
+from .TestError import TestError
 
 
 def __extract_function_code__(function: LizardResult) -> str:
@@ -48,6 +48,9 @@ class Function:
         self.wrapper = wrapper
         self.strategy = strategy
 
+        self.__old_cc__ = lizard_result.cyclomatic_complexity
+        self.__new_cc__ = self.__old_cc__
+
         self.project = project
         self.original_path = lizard_result.filename
         self.dirty_path = lizard_result.filename.replace(
@@ -57,6 +60,18 @@ class Function:
 
         code = __extract_function_code__(lizard_result)
         self.history: list[str] = [code]
+
+    @property
+    def old_cc(self):
+        return self.__old_cc__
+
+    @property
+    def new_cc(self):
+        return self.__new_cc__
+
+    @new_cc.setter
+    def new_cc(self, value):
+        self.__new_cc__ = value
 
     def __apply_dirty_changes__(self, changed_code: str):
         self.history.append(changed_code)

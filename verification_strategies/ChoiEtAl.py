@@ -1,6 +1,6 @@
 from interfaces.VerificationStrategyInterface import VerificationStrategyInterface
 from ProjectHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity, get_most_complex_without_ignored
-from Logger import get_logger
+from util.Logger import get_logger
 from interfaces.NotImprovableException import NotImprovableException
 
 
@@ -35,7 +35,6 @@ class ChoiEtAl(VerificationStrategyInterface):
                 raise NotImprovableException(function)
 
     def verify_improvement(self, function, functions_to_ignore):
-        # TODO (LS-2025-01-16): How to deal with anonymous functions? Consider parameters as part of the name? Position? Length?
         refactored_function = get_most_complex_without_ignored(
             function, functions_to_ignore)
 
@@ -56,4 +55,4 @@ class ChoiEtAl(VerificationStrategyInterface):
             if not is_improved:
                 raise NotImprovableException(function)
 
-        get_logger().info("New CC: " + str(refactored_function.cyclomatic_complexity))
+        function.new_cc = refactored_function.cyclomatic_complexity
