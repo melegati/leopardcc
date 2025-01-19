@@ -13,3 +13,4 @@ class TimeEntry(TypedDict):
     new_cc: int
     old_prj_avg_cc: float
     new_prj_avg_cc: float
+    sent_tokens: int

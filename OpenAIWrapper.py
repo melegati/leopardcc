@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 from openai import OpenAI
+import tiktoken
+from functools import reduce
+import operator
 
 
 class OpenAIWrapper:
@@ -11,20 +14,33 @@ class OpenAIWrapper:
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
         self.client = OpenAI(api_key=self.api_key)
+        self.encoding = tiktoken.encoding_for_model(model)
+        self.__sent_tokens_count = 0
+
+    @property
+    def sent_tokens_count(self):
+        return self.__sent_tokens_count
 
     def __add_message(self, role: str, content: str):
         self.messages.append({"role": role, "content": content})
 
+    def __get_context_length(self, context: list[dict[str, str]]) -> int:
+        tokenized_messages = list(self.encoding.encode(msg["content"])
+                                  for msg in context)
+        tokens_per_message = list(len(tokens) for tokens in tokenized_messages)
+
+        context_length = reduce(operator.add, tokens_per_message)
+        return context_length
+
     def __get_context(self, prompt: str) -> list:
         context = self.messages + [{"role": "user", "content": prompt}]
 
-        total_tokens = sum(len(msg["content"].split()) for msg in context)
-        if self.max_context_length != -1:
-            while total_tokens > self.max_context_length and len(context) > 1:
+        context_length = self.__get_context_length(context)
+        if self.max_context_length > 0:
+            while context_length > self.max_context_length and len(context) > 1:
                 # Remove oldest message until within length limit
                 context.pop(0)
-                total_tokens = sum(len(msg["content"].split())
-                                   for msg in context)
+                context_length = self.__get_context_length(context)
 
         return context
 
@@ -46,6 +62,10 @@ class OpenAIWrapper:
             model=self.model,
             messages=context
         )
+
+        context_length = self.__get_context_length(context)
+        self.__sent_tokens_count += context_length
+
         response_content = str(completion.choices[0].message.content)
 
         self.__add_message("user", prompt)

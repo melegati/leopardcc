@@ -87,11 +87,13 @@ def main() -> None:
                     idx-1]['new_prj_avg_cc']
                 new_prj_cc = compute_avg_cc_for_project(
                     project.dirty_path + project.code_dir)
+                sent_tokens = wrapper.sent_tokens_count
 
                 get_logger().info("Old CC of function: " + str(function.old_cc))
                 get_logger().info("New CC of function: " + str(function.new_cc))
                 get_logger().info("Old CC of project: " + str(old_prj_cc))
                 get_logger().info("New CC of project: " + str(new_prj_cc))
+                get_logger().info("Sent tokens: " + str(sent_tokens))
 
                 entry: TimeEntry = {
                     'iteration': idx,
@@ -101,7 +103,8 @@ def main() -> None:
                     'old_cc': function.old_cc,
                     'new_cc': function.new_cc,
                     'old_prj_avg_cc': old_prj_cc,
-                    'new_prj_avg_cc': new_prj_cc
+                    'new_prj_avg_cc': new_prj_cc,
+                    'sent_tokens': sent_tokens
                 }
                 time_series.append(entry)
                 csv_path = log_dir + "/" + project.name + ".csv"
