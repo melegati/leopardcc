@@ -1,9 +1,10 @@
 import json
+from pathlib import Path
 from openai import OpenAI
 
 
 class OpenAIWrapper:
-    def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 4096):
+    def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
         self.api_key = api_key
         self.model = model
         self.log_path = log_path
@@ -29,6 +30,9 @@ class OpenAIWrapper:
 
     def __save_history_to_json(self):
         try:
+            file = Path(self.log_path)
+            file.parent.mkdir(exist_ok=True, parents=True)
+
             with open(self.log_path, 'w') as json_file:
                 json.dump(self.messages, json_file, indent=4)
         except IOError as e:

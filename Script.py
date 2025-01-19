@@ -24,34 +24,28 @@ def prepare_log_dir() -> str:
     return log_dir
 
 
-def prepare_conversation_wrapper(log_dir: str) -> OpenAIWrapper:
+def prepare_conversation_wrapper(log_path: str) -> OpenAIWrapper:
     with open('openai-key.txt', "r", encoding="utf-8") as key_file:
         api_key = key_file.read()
-    conversation_log_file_path = log_dir + "/conversation.json"
 
     model = "gpt-4o-mini"
-    max_content_length = -1
-    get_logger().info("Creating OpenAIWrapper for model " + model +
-                      " with max. content length " + str(max_content_length))
+    get_logger().info("Creating OpenAIWrapper for model " + model)
 
     wrapper = OpenAIWrapper(
         api_key=api_key,
-        log_path=conversation_log_file_path,
-        model=model,
-        max_context_length=max_content_length)
+        log_path=log_path,
+        model=model)
 
     return wrapper
 
 
 def main() -> None:
-    project = D3Shape()
+    project = Expressjs()
     prompt_strategy = ChoiEtAlPrompt()
     verification_strategy = ChoiEtAlVerification()
 
     log_dir = prepare_log_dir()
     add_log_file_handler(log_dir + "/log.txt")
-
-    wrapper = prepare_conversation_wrapper(log_dir)
 
     complexity_info = compute_cyclomatic_complexity(
         project.path + project.code_dir)
@@ -65,12 +59,16 @@ def main() -> None:
     time_series: list[TimeEntry] = []
     try:
         for idx, lizard_result in enumerate(most_complex[:20]):
-            function = Function(lizard_result, project,
-                                wrapper, prompt_strategy)
             try:
-                get_logger().info("Refactoring function " + function.lizard_result.long_name +
-                                  " from file " + function.lizard_result.filename +
-                                  " with CC: " + str(function.lizard_result.cyclomatic_complexity))
+                get_logger().info("Refactoring function " + lizard_result.long_name +
+                                  " from file " + lizard_result.filename +
+                                  " with CC: " + str(lizard_result.cyclomatic_complexity))
+
+                llm_wrapper_logpath = log_dir + \
+                    "/conversations/" + str(idx) + ".json"
+                wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
+                function = Function(lizard_result, project,
+                                    wrapper, prompt_strategy)
 
                 improve_function(function, improved_functions +
                                  disregarded_functions, verification_strategy)
