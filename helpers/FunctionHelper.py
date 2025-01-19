@@ -1,6 +1,6 @@
 from interfaces.LizardResult import LizardResult
 from interfaces.Function import Function
-from LizardHelper import extract_function_code, compute_cyclomatic_complexity, get_functions_sorted_by_complexity
+from helpers.LizardHelper import extract_function_code, compute_cyclomatic_complexity, get_functions_sorted_by_complexity
 
 # TODO (LS-2025-01-19): Try finding better name/place for this code
 

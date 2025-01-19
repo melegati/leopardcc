@@ -6,7 +6,7 @@ from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler
 from util.CSVWriter import save_time_entries_to_csv
-from LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc_for_project
+from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc_for_project
 from Refactorer import improve_function
 from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException

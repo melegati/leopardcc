@@ -1,7 +1,7 @@
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.TestError import TestError
 from interfaces.LintError import LintError
-from ProjectHelper import get_eslint_errors_from_json_stdout, get_mocha_errors_from_json_stdout
+from helpers.ProjectHelper import get_eslint_errors_from_json_stdout, get_mocha_errors_from_json_stdout
 import shutil
 import subprocess
 import re

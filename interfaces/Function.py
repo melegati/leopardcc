@@ -4,7 +4,7 @@ from .PromptStrategyInterface import PromptStrategyInterface
 from .LizardResult import LizardResult
 from .LintError import LintError
 from .TestError import TestError
-from LizardHelper import extract_function_code
+from helpers.LizardHelper import extract_function_code
 
 
 def __patch_code__(path: str, old_code: str, new_code: str) -> None:
