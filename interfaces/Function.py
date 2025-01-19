@@ -1,19 +1,10 @@
-import functools
-import operator
 from OpenAIWrapper import OpenAIWrapper
 from .ProjectInterface import ProjectInterface
 from .PromptStrategyInterface import PromptStrategyInterface
 from .LizardResult import LizardResult
 from .LintError import LintError
 from .TestError import TestError
-
-
-def __extract_function_code__(function: LizardResult) -> str:
-    with open(function.filename) as file:
-        code = file.readlines()
-    function_lines = code[function.start_line - 1:function.end_line]
-    function_code = functools.reduce(operator.add, function_lines)
-    return function_code
+from LizardHelper import extract_function_code
 
 
 def __patch_code__(path: str, old_code: str, new_code: str) -> None:
@@ -58,20 +49,24 @@ class Function:
         self.target_path = lizard_result.filename.replace(
             project.path, project.target_path)
 
-        code = __extract_function_code__(lizard_result)
+        code = extract_function_code(lizard_result)
         self.history: list[str] = [code]
 
     @property
-    def old_cc(self):
+    def old_cc(self) -> int:
         return self.__old_cc__
 
     @property
-    def new_cc(self):
+    def new_cc(self) -> int:
         return self.__new_cc__
 
     @new_cc.setter
     def new_cc(self, value):
         self.__new_cc__ = value
+
+    @property
+    def current_code_in_dirty(self) -> str:
+        return self.history[-1]
 
     def __apply_dirty_changes__(self, changed_code: str):
         self.history.append(changed_code)
@@ -125,6 +120,7 @@ class Function:
     def restore_original_code(self) -> None:
         __patch_code__(self.dirty_path,
                        old_code=self.history[-1], new_code=self.history[0])
+        self.history.append(self.history[0])
 
     def apply_changes_to_target(self) -> None:
         __patch_code__(self.target_path,

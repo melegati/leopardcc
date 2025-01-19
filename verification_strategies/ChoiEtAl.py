@@ -1,5 +1,6 @@
 from interfaces.VerificationStrategyInterface import VerificationStrategyInterface
-from ProjectHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity, get_most_complex_without_ignored
+from LizardHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity
+from FunctionHelper import get_most_complex_without_ignored
 from util.Logger import get_logger
 from interfaces.NotImprovableException import NotImprovableException
 
