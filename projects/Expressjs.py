@@ -1,5 +1,7 @@
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.TestError import TestError
+from interfaces.LintError import LintError
+from ProjectHelper import get_eslint_errors_from_json_stdout, get_mocha_errors_from_json_stdout
 import shutil
 import subprocess
 import re
@@ -24,8 +26,19 @@ class Expressjs(ProjectInterface):
                        shell=True, capture_output=True, text=True, check=True)
 
     def get_lint_errors(self):
-        # TODO (LS-2025-01-17): Add linting logic
-        pass
+        try:
+            lint_command = 'npx eslint . --fix --format json'
+            subprocess.run(['cd ' + self.dirty_path + ' && ' + lint_command],
+                           shell=True, capture_output=True, text=True, check=True, timeout=7)
+            return []
+
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            if e.stdout is None:
+                raise Exception(
+                    "Linting result does not have stdout to read from")
+
+            errors = get_eslint_errors_from_json_stdout(e.stdout)
+            return errors
 
     def get_test_errors(self):
         try:
@@ -37,56 +50,7 @@ class Expressjs(ProjectInterface):
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             if e.stdout is None:
                 raise Exception("Unit tests do not have stdout to read from")
-            test_info = json.loads(e.stdout)
-            failures = test_info['failures']
-
-            errors: list[TestError] = []
-            for failure in failures:
-                error: TestError = {'expectation': failure['fullTitle'],
-                                    'message_stack': failure['err']['stack'],
-                                    'test_file': failure['file'],
-                                    'target_line': None}
-                line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
-                line_match = re.search(line_pattern, failure['err']['stack'])
-                if line_match is not None:
-                    error['target_line'] = int(line_match.group(1))
-                errors.append(error)
+            line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
+            errors = get_mocha_errors_from_json_stdout(e.stdout, line_pattern)
 
             return errors
-
-    def get_test_case(self, error):
-        if error['target_line'] is None:
-            return None
-
-        with open(error['test_file'], 'r') as f:
-            lines = f.readlines()
-
-        # Find the start and end of the surrounding `it()` closure.
-        start_line = error['target_line']
-
-        # Traverse upwards to find the start of the `it()` closure.
-        while start_line > 0 and not (lines[start_line].strip().startswith("it(")
-                                      or lines[start_line].strip().startswith("test(")):
-            start_line -= 1
-
-        # Traverse downwards to find the end of the closure (assuming balanced braces).
-        end_line = start_line
-        open_braces = 0
-        while end_line < len(lines):
-            line = lines[end_line]
-            open_braces += line.count('{')
-            open_braces -= line.count('}')
-            end_line += 1
-            if open_braces == 0:
-                break
-
-        # Get the closure content
-        test_case_lines = lines[start_line:end_line]
-
-        white_spaces_count = len(test_case_lines[0]) - \
-            len(test_case_lines[0].lstrip())
-        test_case = ''
-        for line in test_case_lines:
-            test_case += line.removeprefix(white_spaces_count * ' ').rstrip()
-
-        return test_case

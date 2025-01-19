@@ -24,8 +24,8 @@ class ProjectInterface(ABC):
             return name_match.group(1)
         return self.path
 
-    @ property
-    @ abstractmethod
+    @property
+    @abstractmethod
     def code_dir(self) -> str:
         """The directory inside the project which holds the source code (e. g. 'src', 'lib', ...)"""
         pass
@@ -48,7 +48,7 @@ class ProjectInterface(ABC):
 
         return path_of_copy
 
-    @ property
+    @property
     def dirty_path(self) -> str:
         """The path to the 'dirty' copy of the project. This is where code is being manipulated and tested."""
         if self.__dirty_path is None:
@@ -56,7 +56,7 @@ class ProjectInterface(ABC):
 
         return self.__dirty_path
 
-    @ property
+    @property
     def target_path(self) -> str:
         """The path to the improved version of the project. This is where only verified changes are appplied."""
         if self.__target_path is None:
@@ -64,19 +64,53 @@ class ProjectInterface(ABC):
 
         return self.__target_path
 
-    @ abstractmethod
+    @abstractmethod
     def get_lint_errors(self) -> list[LintError]:
         """Checks source code for stylistic and programmatic errors and returns them.
         If no errors were found it returns an empty list."""
         pass
 
-    @ abstractmethod
+    @abstractmethod
     def get_test_errors(self) -> list[TestError]:
         """Runs projects unit tests and returns list of failing tests.
         If no test fails it returns an empty list."""
         pass
 
-    @ abstractmethod
     def get_test_case(self, error: TestError) -> None | str:
         """Returns the test code for a given failing test case."""
-        pass
+
+        if error['target_line'] is None:
+            return None
+
+        with open(error['test_file'], 'r') as f:
+            lines = f.readlines()
+
+        # Find the start and end of the surrounding `it()` closure.
+        start_line = error['target_line']
+
+        # Traverse upwards to find the start of the `it()` closure.
+        while start_line > 0 and not (lines[start_line].strip().startswith("it(")
+                                      or lines[start_line].strip().startswith("test(")):
+            start_line -= 1
+
+        # Traverse downwards to find the end of the closure (assuming balanced braces).
+        end_line = start_line
+        open_braces = 0
+        while end_line < len(lines):
+            line = lines[end_line]
+            open_braces += line.count('{')
+            open_braces -= line.count('}')
+            end_line += 1
+            if open_braces == 0:
+                break
+
+        # Get the closure content
+        test_case_lines = lines[start_line:end_line]
+
+        white_spaces_count = len(test_case_lines[0]) - \
+            len(test_case_lines[0].lstrip())
+        test_case = ''
+        for line in test_case_lines:
+            test_case += line.removeprefix(white_spaces_count * ' ').rstrip()
+
+        return test_case
