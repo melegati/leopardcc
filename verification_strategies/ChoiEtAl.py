@@ -1,6 +1,5 @@
 from interfaces.VerificationStrategyInterface import VerificationStrategyInterface
-from helpers.LizardHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity
-from helpers.FunctionHelper import get_most_complex_without_ignored
+from helpers.LizardHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity, measure_code_cc
 from util.Logger import get_logger
 from interfaces.NotImprovableException import NotImprovableException
 
@@ -36,11 +35,8 @@ class ChoiEtAl(VerificationStrategyInterface):
                 raise NotImprovableException(function)
 
     def verify_improvement(self, function, functions_to_ignore):
-        refactored_function = get_most_complex_without_ignored(
-            function, functions_to_ignore)
-
-        is_improved = is_new_function_improved(
-            old_function=function.lizard_result, new_function=refactored_function)
+        new_cc = measure_code_cc(function.current_code_in_dirty)
+        is_improved = new_cc < function.old_cc
 
         if not is_improved:
             get_logger().info("Improvement is not satisfying, attempting to fix")
@@ -48,12 +44,9 @@ class ChoiEtAl(VerificationStrategyInterface):
             self.verify_linting(function)
             self.verify_unit_tests(function)
 
-            refactored_function = get_most_complex_without_ignored(
-                function, functions_to_ignore)
-
-            is_improved = is_new_function_improved(
-                old_function=function.lizard_result, new_function=refactored_function)
+            new_cc = measure_code_cc(function.current_code_in_dirty)
+            is_improved = new_cc < function.old_cc
             if not is_improved:
                 raise NotImprovableException(function)
 
-        function.new_cc = refactored_function.cyclomatic_complexity
+        function.new_cc = new_cc

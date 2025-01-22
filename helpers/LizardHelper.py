@@ -6,6 +6,13 @@ from interfaces.TestError import TestError
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.LizardResult import LizardResult
 
+def measure_code_cc(code: str) -> int:
+    analysis = lizard.analyze_file.analyze_source_code("Test.js", code)
+    functions = analysis.function_list
+    complexities = list(fun.cyclomatic_complexity for fun in functions)
+    highest_complexity = sorted(complexities, reverse=True)[0]
+
+    return highest_complexity
 
 def compute_cyclomatic_complexity(path: str) -> list[LizardResult]:
     extensions = lizard.get_extensions(extension_names=["io"])
@@ -48,4 +55,5 @@ def extract_function_code(function: LizardResult) -> str:
         code = file.readlines()
     function_lines = code[function.start_line - 1:function.end_line]
     function_code = reduce(operator.add, function_lines)
-    return function_code
+    code_without_leading_spaces = function_code.lstrip()
+    return code_without_leading_spaces

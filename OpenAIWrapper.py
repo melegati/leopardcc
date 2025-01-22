@@ -7,6 +7,8 @@ import operator
 
 
 class OpenAIWrapper:
+    # TODO (LS-2025-01-22): Implement rate limit
+    
     def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
         self.api_key = api_key
         self.model = model
@@ -14,7 +16,7 @@ class OpenAIWrapper:
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
         self.client = OpenAI(api_key=self.api_key)
-        self.encoding = tiktoken.encoding_for_model(model)
+        self.tokenizer = tiktoken.encoding_for_model(model)
         self.__sent_tokens_count = 0
 
     @property
@@ -25,7 +27,7 @@ class OpenAIWrapper:
         self.messages.append({"role": role, "content": content})
 
     def __get_context_length(self, context: list[dict[str, str]]) -> int:
-        tokenized_messages = list(self.encoding.encode(msg["content"])
+        tokenized_messages = list(self.tokenizer.encode(msg["content"])
                                   for msg in context)
         tokens_per_message = list(len(tokens) for tokens in tokenized_messages)
 

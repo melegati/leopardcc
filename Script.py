@@ -60,12 +60,12 @@ def main() -> None:
     try:
         for idx, lizard_result in enumerate(most_complex[:20]):
             try:
-                get_logger().info("Refactoring function " + lizard_result.long_name +
+                get_logger().info("Refactoring function #" + str(idx) + ": " + lizard_result.long_name +
                                   " from file " + lizard_result.filename +
                                   " with CC: " + str(lizard_result.cyclomatic_complexity))
 
                 llm_wrapper_logpath = log_dir + \
-                    "/conversations/" + str(idx) + ".json"
+                    "/conversations/" + project.name + "-" + str(idx) + ".json"
                 wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
                 function = Function(lizard_result, project,
                                     wrapper, prompt_strategy)
@@ -78,7 +78,7 @@ def main() -> None:
                 improved_functions.append(function)
 
             except NotImprovableException as e:
-                get_logger().info("Function could not be improved, disregarding")
+                get_logger().info("Disregarding function due to unsatisfactory " + e.reason)
                 function.restore_original_code()
                 disregarded_functions.append(function)
 
