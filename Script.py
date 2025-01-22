@@ -57,63 +57,72 @@ def main() -> None:
     original_avg_project_cc = compute_avg_cc_for_project(
         project.path + project.code_dir)
     time_series: list[TimeEntry] = []
-    try:
-        for idx, lizard_result in enumerate(most_complex[:20]):
-            try:
-                get_logger().info("Refactoring function #" + str(idx) + ": " + lizard_result.long_name +
-                                  " from file " + lizard_result.filename +
-                                  " with CC: " + str(lizard_result.cyclomatic_complexity))
+    
+    consecutive_exception_count = 0
+    for idx, lizard_result in enumerate(most_complex[:20]):
+        try:
+            get_logger().info("Refactoring function #" + str(idx) + ": " + lizard_result.long_name +
+                                " from file " + lizard_result.filename +
+                                " with CC: " + str(lizard_result.cyclomatic_complexity))
 
-                llm_wrapper_logpath = log_dir + \
-                    "/conversations/" + project.name + "-" + str(idx) + ".json"
-                llm_wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
-                function = Function(lizard_result, project,
-                                    llm_wrapper, prompt_strategy)
+            llm_wrapper_logpath = log_dir + \
+                "/conversations/" + project.name + "-" + str(idx) + ".json"
+            llm_wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
+            function = Function(lizard_result, project,
+                                llm_wrapper, prompt_strategy)
 
-                improve_function(function, improved_functions +
-                                 disregarded_functions, verification_strategy)
+            improve_function(function, improved_functions +
+                                disregarded_functions, verification_strategy)
 
-                get_logger().info("Function successfully improved")
-                function.apply_changes_to_target()
-                improved_functions.append(function)
+            get_logger().info("Function successfully improved")
+            function.apply_changes_to_target()
+            improved_functions.append(function)
+            consecutive_exception_count = 0
 
-            except NotImprovableException as e:
-                get_logger().info("Disregarding function due to unsatisfactory " + e.reason)
-                function.restore_original_code()
-                disregarded_functions.append(function)
+        except NotImprovableException as e:
+            get_logger().info("Disregarding function due to unsatisfactory " + e.reason)
+            function.restore_original_code()
+            disregarded_functions.append(function)
 
-            finally:
-                old_prj_cc = original_avg_project_cc if idx == 0 else time_series[
-                    idx-1]['new_prj_avg_cc']
-                new_prj_cc = compute_avg_cc_for_project(
-                    project.dirty_path + project.code_dir)
-                sent_tokens = llm_wrapper.sent_tokens_count
+        except BaseException as e:
+            ++consecutive_exception_count
+            get_logger().error(e)
 
-                get_logger().info("Old CC of function: " + str(function.old_cc))
-                get_logger().info("New CC of function: " + str(function.new_cc))
-                get_logger().info("Old CC of project: " + str(old_prj_cc))
-                get_logger().info("New CC of project: " + str(new_prj_cc))
-                get_logger().info("Sent tokens: " + str(sent_tokens))
+            if consecutive_exception_count >= 3:
+                raise e
 
-                entry: TimeEntry = {
-                    'iteration': idx,
-                    'timestamp': datetime.now(timezone.utc),
-                    'function_file': function.original_path,
-                    'function_name': function.lizard_result.long_name,
-                    'old_cc': function.old_cc,
-                    'new_cc': function.new_cc,
-                    'old_prj_avg_cc': old_prj_cc,
-                    'new_prj_avg_cc': new_prj_cc,
-                    'sent_tokens': sent_tokens
-                }
-                time_series.append(entry)
-                csv_path = log_dir + "/" + project.name + ".csv"
-                save_time_entries_to_csv(csv_path, time_series)
+            function.restore_original_code()
+            disregarded_functions.append(function)
 
-    except BaseException as e:
-        get_logger().error(e)
-        raise e
+        finally:
+            old_prj_cc = original_avg_project_cc if idx == 0 else time_series[
+                idx-1]['new_prj_avg_cc']
+            new_prj_cc = compute_avg_cc_for_project(
+                project.dirty_path + project.code_dir)
+            sent_tokens = llm_wrapper.sent_tokens_count
+            received_tokens = llm_wrapper.received_tokens_count
 
+            get_logger().info("Old CC of function: " + str(function.old_cc))
+            get_logger().info("New CC of function: " + str(function.new_cc))
+            get_logger().info("Old CC of project: " + str(old_prj_cc))
+            get_logger().info("New CC of project: " + str(new_prj_cc))
+            get_logger().info("LLM-processed tokens: " + str(sent_tokens + received_tokens))
+
+            entry: TimeEntry = {
+                'iteration': idx,
+                'timestamp': datetime.now(timezone.utc),
+                'function_file': function.original_path,
+                'function_name': function.lizard_result.long_name,
+                'old_cc': function.old_cc,
+                'new_cc': function.new_cc,
+                'old_prj_avg_cc': old_prj_cc,
+                'new_prj_avg_cc': new_prj_cc,
+                'sent_tokens': sent_tokens,
+                'received_tokens': received_tokens
+            }
+            time_series.append(entry)
+            csv_path = log_dir + "/" + project.name + ".csv"
+            save_time_entries_to_csv(csv_path, time_series)
 
 if __name__ == "__main__":
     main()

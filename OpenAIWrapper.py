@@ -1,14 +1,15 @@
 import json
 from pathlib import Path
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 import tiktoken
 from functools import reduce
 import operator
+import time
+from util.Logger import get_logger
+from random import randint
 
 
 class OpenAIWrapper:
-    # TODO (LS-2025-01-22): Implement rate limit
-    
     def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
         self.api_key = api_key
         self.model = model
@@ -18,10 +19,15 @@ class OpenAIWrapper:
         self.client = OpenAI(api_key=self.api_key)
         self.tokenizer = tiktoken.encoding_for_model(model)
         self.__sent_tokens_count = 0
+        self.__received_tokens_count = 0
 
     @property
     def sent_tokens_count(self):
         return self.__sent_tokens_count
+
+    @property
+    def received_tokens_count(self):
+        return self.__received_tokens_count
 
     def __add_message(self, role: str, content: str):
         self.messages.append({"role": role, "content": content})
@@ -60,15 +66,31 @@ class OpenAIWrapper:
     def send_message(self, prompt: str):
         context = self.__get_context(prompt)
 
-        completion = self.client.chat.completions.create(
-            model=self.model,
-            messages=context
-        )
+        was_completion_successful = False
+        base_delay = 5
+        while not was_completion_successful:
+            try:
+                completion = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=context
+                )
+                was_completion_successful = True
+            
+            except RateLimitError as e:
+                delay = base_delay + randint(1, 5)
+                get_logger().error("Rate limit error: " + e.message)
+                get_logger().info("Waiting " + str(delay) + "s before next attempt")
+                time.sleep(delay)
+                base_delay +=5
+
 
         context_length = self.__get_context_length(context)
         self.__sent_tokens_count += context_length
 
         response_content = str(completion.choices[0].message.content)
+        tokenized_response = self.tokenizer.encode(response_content)
+        response_tokens_count = len(tokenized_response)
+        self.__received_tokens_count += response_tokens_count
 
         self.__add_message("user", prompt)
         self.__add_message("assistant", response_content)
