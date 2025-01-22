@@ -4,8 +4,8 @@ from interfaces.LintError import LintError
 from helpers.ProjectHelper import get_eslint_errors_from_json_stdout, get_mocha_errors_from_json_stdout
 import shutil
 import subprocess
-import re
 import json
+import os
 
 
 class Expressjs(ProjectInterface):
@@ -25,11 +25,29 @@ class Expressjs(ProjectInterface):
                         ' && npm install'],
                        shell=True, capture_output=True, text=True, check=True)
 
+    def run_lint_fix(self, code):
+        patch_file_path = self.dirty_path + "/patch.js"
+        with open(patch_file_path, 'w') as patch_file:
+            patch_file.write(code)
+        
+        lint_fix_command = 'cat patch.js | npx eslint --stdin --format json --fix-dry-run'
+        proc = subprocess.run(['cd ' + self.dirty_path + ' && ' + lint_fix_command],
+                           shell=True, capture_output=True, text=True, check=False)
+
+        os.remove(patch_file_path) 
+        
+        linter_output = json.loads(proc.stdout)
+        if 'output' in linter_output[0]:
+            improved_code = linter_output[0]['output']
+            return improved_code
+        
+        return code
+
     def get_lint_errors(self):
         try:
-            lint_command = 'npx eslint . --fix --format json'
+            lint_command = 'npx eslint . --format json'
             subprocess.run(['cd ' + self.dirty_path + ' && ' + lint_command],
-                           shell=True, capture_output=True, text=True, check=True, timeout=7)
+                           shell=True, capture_output=True, text=True, check=True, timeout=10)
             return []
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:

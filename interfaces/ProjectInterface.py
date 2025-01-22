@@ -64,6 +64,10 @@ class ProjectInterface(ABC):
 
         return self.__target_path
 
+    def run_lint_fix(self, code: str) -> str:
+        """Optional: Resolve automatically fixable linting errors before applying code changes"""
+        return code
+
     @abstractmethod
     def get_lint_errors(self) -> list[LintError]:
         """Checks source code for stylistic and programmatic errors and returns them.

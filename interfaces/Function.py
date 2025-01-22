@@ -73,49 +73,52 @@ class Function:
         __patch_code__(self.dirty_path,
                        old_code=self.history[-2], new_code=self.history[-1])
 
+    def __process_llm_code__(self, code: str) -> str:
+        code_without_backticks = __remove_code_block_backticks__(code)
+        lint_fixed_code = self.project.run_lint_fix(code_without_backticks)
+        
+        return lint_fixed_code
+
     def initial_refactor(self) -> None:
         prompt = self.strategy.initial_prompt(self.history[-1])
 
-        improved_code = self.wrapper.send_message(prompt)
-        code_without_backticks = __remove_code_block_backticks__(
-            improved_code)
+        llm_response_code = self.wrapper.send_message(prompt)
+        postprocessed_code = self.__process_llm_code__(llm_response_code)
 
-        self.__apply_dirty_changes__(code_without_backticks)
+        self.__apply_dirty_changes__(postprocessed_code)
 
     def refactor_with_lint_errors(self, errors: list[LintError]) -> None:
         prompt = self.strategy.linting_explanation_prompt(errors)
         explanation = self.wrapper.send_message(prompt)
 
         prompt = self.strategy.linting_fix_prompt()
-        improved_code = self.wrapper.send_message(prompt)
-        code_without_backticks = __remove_code_block_backticks__(
-            improved_code)
+        llm_response_code = self.wrapper.send_message(prompt)
+        postprocessed_code = self.__process_llm_code__(llm_response_code)
 
-        self.__apply_dirty_changes__(code_without_backticks)
+        self.__apply_dirty_changes__(postprocessed_code)
 
     def refactor_with_test_errors(self, errors: list[TestError]) -> None:
-        test_cases = __get_test_cases_from_errors__(errors, self.project)
+        top_errors = errors[:10]
+        test_cases = __get_test_cases_from_errors__(top_errors, self.project)
 
         prompt = self.strategy.test_explanation_prompt(errors, test_cases)
         explanation = self.wrapper.send_message(prompt)
 
         prompt = self.strategy.test_fix_prompt()
-        improved_code = self.wrapper.send_message(prompt)
-        code_without_backticks = __remove_code_block_backticks__(
-            improved_code)
+        llm_response_code = self.wrapper.send_message(prompt)
+        postprocessed_code = self.__process_llm_code__(llm_response_code)
 
-        self.__apply_dirty_changes__(code_without_backticks)
+        self.__apply_dirty_changes__(postprocessed_code)
 
     def refactor_for_better_improvement(self) -> None:
         prompt = self.strategy.better_improvement_explanation_prompt()
         self.wrapper.send_message(prompt)
 
         prompt = self.strategy.better_improvement_fix_prompt()
-        improved_code = self.wrapper.send_message(prompt)
-        code_without_backticks = __remove_code_block_backticks__(
-            improved_code)
+        llm_response_code = self.wrapper.send_message(prompt)
+        postprocessed_code = self.__process_llm_code__(llm_response_code)
 
-        self.__apply_dirty_changes__(code_without_backticks)
+        self.__apply_dirty_changes__(postprocessed_code)
 
     def restore_original_code(self) -> None:
         __patch_code__(self.dirty_path,
