@@ -11,7 +11,17 @@ def __patch_code__(path: str, old_code: str, new_code: str) -> None:
     with open(path, 'r') as file:
         filedata = file.read()
 
+    idx_old = filedata.find(old_code)
+    if idx_old == -1:
+        raise Exception("Could not find in file " +
+                        path + " old code: " + old_code)
+
     filedata = filedata.replace(old_code, new_code)
+
+    idx_new = filedata.find(new_code)
+    if idx_new == -1:
+        raise Exception("Could not find in file " +
+                        path + " new code: " + new_code)
 
     with open(path, 'w') as file:
         file.write(filedata)
