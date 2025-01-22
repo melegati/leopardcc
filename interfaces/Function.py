@@ -44,9 +44,9 @@ def __get_test_cases_from_errors__(errors: list[TestError], project: ProjectInte
 
 
 class Function:
-    def __init__(self, lizard_result: LizardResult, project: ProjectInterface, wrapper: OpenAIWrapper, strategy: PromptStrategyInterface):
+    def __init__(self, lizard_result: LizardResult, project: ProjectInterface, llm_wrapper: OpenAIWrapper, strategy: PromptStrategyInterface):
         self.lizard_result = lizard_result
-        self.wrapper = wrapper
+        self.llm_wrapper = llm_wrapper
         self.strategy = strategy
 
         self.__old_cc__ = lizard_result.cyclomatic_complexity
@@ -92,17 +92,17 @@ class Function:
     def initial_refactor(self) -> None:
         prompt = self.strategy.initial_prompt(self.history[-1])
 
-        llm_response_code = self.wrapper.send_message(prompt)
+        llm_response_code = self.llm_wrapper.send_message(prompt)
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
 
     def refactor_with_lint_errors(self, errors: list[LintError]) -> None:
         prompt = self.strategy.linting_explanation_prompt(errors)
-        explanation = self.wrapper.send_message(prompt)
+        explanation = self.llm_wrapper.send_message(prompt)
 
         prompt = self.strategy.linting_fix_prompt()
-        llm_response_code = self.wrapper.send_message(prompt)
+        llm_response_code = self.llm_wrapper.send_message(prompt)
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
@@ -112,20 +112,20 @@ class Function:
         test_cases = __get_test_cases_from_errors__(top_errors, self.project)
 
         prompt = self.strategy.test_explanation_prompt(errors, test_cases)
-        explanation = self.wrapper.send_message(prompt)
+        explanation = self.llm_wrapper.send_message(prompt)
 
         prompt = self.strategy.test_fix_prompt()
-        llm_response_code = self.wrapper.send_message(prompt)
+        llm_response_code = self.llm_wrapper.send_message(prompt)
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
 
     def refactor_for_better_improvement(self) -> None:
         prompt = self.strategy.better_improvement_explanation_prompt()
-        self.wrapper.send_message(prompt)
+        self.llm_wrapper.send_message(prompt)
 
         prompt = self.strategy.better_improvement_fix_prompt()
-        llm_response_code = self.wrapper.send_message(prompt)
+        llm_response_code = self.llm_wrapper.send_message(prompt)
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)

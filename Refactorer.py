@@ -1,8 +1,4 @@
-from OpenAIWrapper import OpenAIWrapper
-from interfaces.PromptStrategyInterface import PromptStrategyInterface
-from interfaces.ProjectInterface import ProjectInterface
 from interfaces.VerificationStrategyInterface import VerificationStrategyInterface
-from interfaces.LizardResult import LizardResult
 from interfaces.Function import Function
 
 

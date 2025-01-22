@@ -31,12 +31,12 @@ def prepare_conversation_wrapper(log_path: str) -> OpenAIWrapper:
     model = "gpt-4o-mini"
     get_logger().info("Creating OpenAIWrapper for model " + model)
 
-    wrapper = OpenAIWrapper(
+    llm_wrapper = OpenAIWrapper(
         api_key=api_key,
         log_path=log_path,
         model=model)
 
-    return wrapper
+    return llm_wrapper
 
 
 def main() -> None:
@@ -66,9 +66,9 @@ def main() -> None:
 
                 llm_wrapper_logpath = log_dir + \
                     "/conversations/" + project.name + "-" + str(idx) + ".json"
-                wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
+                llm_wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
                 function = Function(lizard_result, project,
-                                    wrapper, prompt_strategy)
+                                    llm_wrapper, prompt_strategy)
 
                 improve_function(function, improved_functions +
                                  disregarded_functions, verification_strategy)
@@ -87,7 +87,7 @@ def main() -> None:
                     idx-1]['new_prj_avg_cc']
                 new_prj_cc = compute_avg_cc_for_project(
                     project.dirty_path + project.code_dir)
-                sent_tokens = wrapper.sent_tokens_count
+                sent_tokens = llm_wrapper.sent_tokens_count
 
                 get_logger().info("Old CC of function: " + str(function.old_cc))
                 get_logger().info("New CC of function: " + str(function.new_cc))
