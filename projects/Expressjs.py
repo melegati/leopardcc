@@ -60,15 +60,25 @@ class Expressjs(ProjectInterface):
 
     def get_test_errors(self):
         try:
-            test_command = 'npx mocha --require test/support/env --reporter json --check-leaks test/ test/acceptance/'
+            mocha_json_name = 'mocha-output.json'
+            test_command = 'npx mocha --require test/support/env --check-leaks test/ test/acceptance/ --reporter json --reporter-option output=' + mocha_json_name
+
+            mocha_json_output_path = self.dirty_path + '/' + mocha_json_name
+            
             subprocess.run(['cd ' + self.dirty_path + ' && ' + test_command],
-                           shell=True, capture_output=True, text=True, check=True, timeout=7)
+                           shell=True, capture_output=True, text=True, check=True, timeout=10)
+            
+            if os.path.exists(mocha_json_output_path):
+                os.remove(mocha_json_output_path) 
             return []
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            if e.stdout is None:
-                raise Exception("Unit tests do not have stdout to read from")
+            with open(mocha_json_output_path, 'r') as mocha_json_file:
+                mocha_json_output = mocha_json_file.read()
+            
             line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
-            errors = get_mocha_errors_from_json_stdout(e.stdout, line_pattern)
-
+            errors = get_mocha_errors_from_json_stdout(mocha_json_output, line_pattern)
+            
+            if os.path.exists(mocha_json_output_path):
+                os.remove(mocha_json_output_path) 
             return errors

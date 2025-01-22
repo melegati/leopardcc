@@ -27,7 +27,7 @@ def get_eslint_errors_from_json_stdout(stdout: bytes) -> list[LintError]:
     return errors
 
 
-def get_mocha_errors_from_json_stdout(stdout: bytes, line_pattern: str) -> list[TestError]:
+def get_mocha_errors_from_json_stdout(stdout: bytes | str, line_pattern: str) -> list[TestError]:
     test_info = json.loads(stdout)
     failures = test_info['failures']
 
