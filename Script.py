@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
+from projects.Underscore import Underscore
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler
@@ -40,7 +41,7 @@ def prepare_conversation_wrapper(log_path: str) -> OpenAIWrapper:
 
 
 def main() -> None:
-    project = Expressjs()
+    project = Underscore()
     prompt_strategy = ChoiEtAlPrompt()
     verification_strategy = ChoiEtAlVerification()
 
@@ -111,7 +112,7 @@ def main() -> None:
             entry: TimeEntry = {
                 'iteration': idx,
                 'timestamp': datetime.now(timezone.utc),
-                'function_file': function.original_path,
+                'function_file': function.relative_path,
                 'function_name': function.lizard_result.long_name,
                 'old_cc': function.old_cc,
                 'new_cc': function.new_cc,

@@ -54,6 +54,7 @@ class Function:
 
         self.project = project
         self.original_path = lizard_result.filename
+        self.relative_path = self.original_path.replace(self.project.path + "/", "")
         self.dirty_path = lizard_result.filename.replace(
             project.path, project.dirty_path)
         self.target_path = lizard_result.filename.replace(
