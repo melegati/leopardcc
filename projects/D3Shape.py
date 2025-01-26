@@ -1,11 +1,9 @@
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.LintError import LintError
 from interfaces.TestError import TestError
-from helpers.ProjectHelper import get_eslint_errors_from_json_stdout, get_mocha_errors_from_json_stdout
+from helpers.ProjectHelper import fix_eslint_issues, get_eslint_errors, get_mocha_errors
 import shutil
 import subprocess
-import re
-import json
 
 
 class D3Shape(ProjectInterface):
@@ -25,32 +23,20 @@ class D3Shape(ProjectInterface):
                         ' && yarn install'],
                        shell=True, capture_output=True, text=True, check=True)
 
+    def run_lint_fix(self, code):
+        fixed_code = fix_eslint_issues(code, self.dirty_path)
+
+        return fixed_code
+    
     def get_lint_errors(self):
-        try:
-            lint_command = 'npx eslint src test --fix --format json'
-            subprocess.run(['cd ' + self.dirty_path + ' && ' + lint_command],
-                           shell=True, capture_output=True, text=True, check=True, timeout=7)
-            return []
+        lint_command = 'npx eslint src'
+        errors = get_eslint_errors(self.dirty_path, lint_command)
 
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            if e.stdout is None:
-                raise Exception(
-                    "Linting result does not have stdout to read from")
-
-            errors = get_eslint_errors_from_json_stdout(e.stdout)
-            return errors
+        return errors
 
     def get_test_errors(self):
-        try:
-            test_command = 'npx mocha "test/**/*-test.js" --reporter json'
-            subprocess.run(['cd ' + self.dirty_path + ' && ' + test_command],
-                           shell=True, capture_output=True, text=True, check=True, timeout=7)
-            return []
+        test_command = 'npx mocha "test/**/*-test.js"'
+        line_pattern = r' *at Context.<anonymous> \S+d3-shape\D+:(\d+):\d+\)\n'
+        errors = get_mocha_errors(self.dirty_path, test_command, line_pattern)
 
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            if e.stdout is None:
-                raise Exception("Unit tests do not have stdout to read from")
-            line_pattern = r' *at Context.<anonymous> \S+d3-shape\D+:(\d+):\d+\)\n'
-            errors = get_mocha_errors_from_json_stdout(e.stdout, line_pattern)
-
-            return errors
+        return errors
