@@ -13,12 +13,13 @@ from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException
 import os
 from interfaces.TimeSeriesEntry import TimeEntry
+from git import Repo
 
 
-def prepare_log_dir() -> str:
+def prepare_log_dir(project_name: str) -> str:
     timestamp = filename = datetime.now(timezone.utc).strftime(
         "%Y-%m-%d-%H-%M-%S")
-    log_dir = "logs/" + timestamp
+    log_dir = "logs/" + timestamp + "-" + project_name
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -40,12 +41,28 @@ def prepare_conversation_wrapper(log_path: str) -> OpenAIWrapper:
     return llm_wrapper
 
 
+def save_git_diff_patch(repo: Repo, function: Function, log_dir: str, idx: int):
+    diff = repo.git.diff(function.target_path)
+
+    patch_dir = log_dir + '/patches'
+    if not os.path.exists(patch_dir):
+        os.makedirs(patch_dir)
+
+    patch_file_path = patch_dir + '/' + str(idx) + '-' + function.lizard_result.name + '.diff'
+    with open(patch_file_path, "w", encoding="utf-8") as patch_file:
+        patch_file.write(diff)
+    
+    repo.git.add(function.target_path)
+    commit_message = 'apply patch for refactoring iteration ' + str(idx) + ' for fn ' +  function.lizard_result.name
+    repo.index.commit(commit_message, skip_hooks=True)
+
+
 def main() -> None:
     project = Underscore()
     prompt_strategy = ChoiEtAlPrompt()
     verification_strategy = ChoiEtAlVerification()
 
-    log_dir = prepare_log_dir()
+    log_dir = prepare_log_dir(project.name)
     add_log_file_handler(log_dir + "/log.txt")
 
     complexity_info = compute_cyclomatic_complexity(
@@ -54,6 +71,8 @@ def main() -> None:
 
     improved_functions: list[Function] = list()
     disregarded_functions: list[Function] = list()
+
+    repo = Repo(project.target_path)
 
     original_avg_project_cc = compute_avg_cc_for_project(
         project.path + project.code_dir)
@@ -78,6 +97,7 @@ def main() -> None:
             get_logger().info("Function successfully improved")
             function.apply_changes_to_target()
             improved_functions.append(function)
+            save_git_diff_patch(repo, function, log_dir, idx)
             consecutive_exception_count = 0
 
         except NotImprovableException as e:

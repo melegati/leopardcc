@@ -40,9 +40,8 @@ class ProjectInterface(ABC):
         if os.path.exists(destination_path):
             shutil.rmtree(destination_path)
 
-        ignore_patterns = shutil.ignore_patterns('.git')
         path_of_copy = shutil.copytree(
-            self.path, destination_path, dirs_exist_ok=True, ignore=ignore_patterns)
+            self.path, destination_path, dirs_exist_ok=True)
 
         self.after_copy_hook(path_suffix)
 
