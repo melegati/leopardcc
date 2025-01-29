@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from OpenAIWrapper import OpenAIWrapper
+from llm_wrappers.OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
 from projects.Underscore import Underscore
@@ -11,6 +11,7 @@ from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_so
 from Refactorer import improve_function
 from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException
+from interfaces.LlmWrapperInterface import LLMWrapperInterface
 import os
 from interfaces.TimeSeriesEntry import TimeEntry
 from git import Repo
@@ -26,7 +27,7 @@ def prepare_log_dir(project_name: str) -> str:
     return log_dir
 
 
-def prepare_conversation_wrapper(log_path: str) -> OpenAIWrapper:
+def prepare_conversation_wrapper(log_path: str) -> LLMWrapperInterface:
     with open('openai-key.txt', "r", encoding="utf-8") as key_file:
         api_key = key_file.read()
 
@@ -58,7 +59,7 @@ def save_git_diff_patch(repo: Repo, function: Function, log_dir: str, idx: int):
 
 
 def main() -> None:
-    project = Underscore()
+    project = Expressjs()
     prompt_strategy = ChoiEtAlPrompt()
     verification_strategy = ChoiEtAlVerification()
 
@@ -87,7 +88,7 @@ def main() -> None:
 
             llm_wrapper_logpath = log_dir + \
                 "/conversations/" + project.name + "-" + str(idx) + ".json"
-            llm_wrapper = prepare_conversation_wrapper(llm_wrapper_logpath)
+            llm_wrapper: LLMWrapperInterface = prepare_conversation_wrapper(llm_wrapper_logpath)
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
 
@@ -95,6 +96,7 @@ def main() -> None:
                                 disregarded_functions, verification_strategy)
 
             get_logger().info("Function successfully improved")
+            input("Press Enter to continue")
             function.apply_changes_to_target()
             improved_functions.append(function)
             save_git_diff_patch(repo, function, log_dir, idx)
@@ -102,6 +104,7 @@ def main() -> None:
 
         except NotImprovableException as e:
             get_logger().info("Disregarding function due to unsatisfactory " + e.reason)
+            input("Press Enter to continue")
             function.restore_original_code()
             disregarded_functions.append(function)
 

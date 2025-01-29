@@ -1,3 +1,4 @@
+from interfaces.LlmWrapperInterface import LLMWrapperInterface
 import json
 from pathlib import Path
 from openai import OpenAI, RateLimitError
@@ -9,7 +10,7 @@ from util.Logger import get_logger
 from random import randint
 
 
-class OpenAIWrapper:
+class OpenAIWrapper(LLMWrapperInterface):
     def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
         self.api_key = api_key
         self.model = model

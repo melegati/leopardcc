@@ -1,4 +1,4 @@
-from OpenAIWrapper import OpenAIWrapper
+from .LlmWrapperInterface import LLMWrapperInterface
 from .ProjectInterface import ProjectInterface
 from .PromptStrategyInterface import PromptStrategyInterface
 from .LizardResult import LizardResult
@@ -44,7 +44,7 @@ def __get_test_cases_from_errors__(errors: list[TestError], project: ProjectInte
 
 
 class Function:
-    def __init__(self, lizard_result: LizardResult, project: ProjectInterface, llm_wrapper: OpenAIWrapper, strategy: PromptStrategyInterface):
+    def __init__(self, lizard_result: LizardResult, project: ProjectInterface, llm_wrapper: LLMWrapperInterface, strategy: PromptStrategyInterface):
         self.lizard_result = lizard_result
         self.llm_wrapper = llm_wrapper
         self.strategy = strategy
