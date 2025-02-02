@@ -63,6 +63,10 @@ def main() -> None:
     prompt_strategy = ChoiEtAlPrompt()
     verification_strategy = ChoiEtAlVerification()
 
+    get_logger().info("Refactoring project " + project.name)
+    get_logger().info("Prompt strategy: " + prompt_strategy.name)
+    get_logger().info("Verification strategy: " + verification_strategy.name)
+
     log_dir = prepare_log_dir(project.name)
     add_log_file_handler(log_dir + "/log.txt")
 

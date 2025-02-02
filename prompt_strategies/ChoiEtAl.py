@@ -6,6 +6,10 @@ from interfaces.TestError import TestError
 class ChoiEtAl(PromptStrategyInterface):
     """Prompts adapted to JavaScript, taken from Choi, Jinsu et al. 2024: 'Iterative Refactoring of Real-World Open-Source Programs with Large Language Models'"""
 
+    @property
+    def name(self):
+        return "Choi et al."
+    
     def initial_prompt(self, code: str) -> str:
         prompt = """```javascript
         {code}

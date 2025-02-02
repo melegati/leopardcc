@@ -5,6 +5,12 @@ from interfaces.Function import Function
 class VerificationStrategyInterface(ABC):
     """Provides methods to verify the correct behavior and the improvement of a software project"""
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Provide a short, descriptive name, to differentiate this strategy from others"""
+        pass
+    
     @abstractmethod
     def verify_linting(self, function: Function):
         """Runs linting and attempts to fix potentially occuring errors"""

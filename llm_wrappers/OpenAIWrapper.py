@@ -23,6 +23,10 @@ class OpenAIWrapper(LLMWrapperInterface):
         self.__received_tokens_count = 0
 
     @property
+    def name(self):
+        return "OpenAI wrapper"
+    
+    @property
     def sent_tokens_count(self):
         return self.__sent_tokens_count
 

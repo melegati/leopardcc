@@ -4,6 +4,12 @@ from .TestError import TestError
 
 
 class PromptStrategyInterface(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Provide a short, descriptive name, to differentiate this strategy from others"""
+        pass
+    
     @abstractmethod
     def initial_prompt(self, code: str) -> str:
         """Ask for refactoring a function to achieve a better maintainability and readability."""

@@ -7,6 +7,10 @@ from interfaces.NotImprovableException import NotImprovableException
 class ChoiEtAl(VerificationStrategyInterface):
     """Verification methods adapted to JavaScript, taken from Choi, Jinsu et al. 2024: 'Iterative Refactoring of Real-World Open-Source Programs with Large Language Models'"""
 
+    @property
+    def name(self):
+        return "Choi et al."
+
     def verify_linting(self, function):
         lint_errors = function.project.get_lint_errors()
         does_linting_pass = len(lint_errors) == 0
