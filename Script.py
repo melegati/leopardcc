@@ -27,7 +27,7 @@ def prepare_log_dir(project_name: str) -> str:
     return log_dir
 
 
-def prepare_conversation_wrapper(log_path: str) -> LLMWrapperInterface:
+def prepare_openai_wrapper(log_path: str) -> LLMWrapperInterface:
     with open('openai-key.txt', "r", encoding="utf-8") as key_file:
         api_key = key_file.read()
 
@@ -92,7 +92,7 @@ def main() -> None:
 
             llm_wrapper_logpath = log_dir + \
                 "/conversations/" + project.name + "-" + str(idx) + ".json"
-            llm_wrapper: LLMWrapperInterface = prepare_conversation_wrapper(llm_wrapper_logpath)
+            llm_wrapper: LLMWrapperInterface = prepare_openai_wrapper(llm_wrapper_logpath)
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
 

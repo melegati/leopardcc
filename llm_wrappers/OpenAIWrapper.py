@@ -11,6 +11,10 @@ from random import randint
 
 
 class OpenAIWrapper(LLMWrapperInterface):
+    @staticmethod
+    def name():
+        return "OpenAI wrapper"
+    
     def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
         self.api_key = api_key
         self.model = model
@@ -21,10 +25,6 @@ class OpenAIWrapper(LLMWrapperInterface):
         self.tokenizer = tiktoken.encoding_for_model(model)
         self.__sent_tokens_count = 0
         self.__received_tokens_count = 0
-
-    @property
-    def name(self):
-        return "OpenAI wrapper"
     
     @property
     def sent_tokens_count(self):

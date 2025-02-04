@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 
 
 class LLMWrapperInterface(ABC):
-    @property
+    @staticmethod
     @abstractmethod
-    def name(self) -> str:
+    def name() -> str:
         """Provide a short, descriptive name, to differentiate this llm wrapper from others"""
         pass
     
