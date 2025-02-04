@@ -3,6 +3,7 @@ from llm_wrappers.OpenAIWrapper import OpenAIWrapper
 from projects.Expressjs import Expressjs
 from projects.D3Shape import D3Shape
 from projects.Underscore import Underscore
+from projects.Dayjs import Dayjs
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler
@@ -59,7 +60,7 @@ def save_git_diff_patch(repo: Repo, function: Function, log_dir: str, idx: int):
 
 
 def main() -> None:
-    project = Expressjs()
+    project = Dayjs()
     prompt_strategy = ChoiEtAlPrompt()
     verification_strategy = ChoiEtAlVerification()
 
