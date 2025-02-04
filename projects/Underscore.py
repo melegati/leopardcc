@@ -1,8 +1,10 @@
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.TestError import TestError
 from interfaces.LintError import LintError
-from helpers.ProjectHelper import fix_eslint_issues, get_eslint_errors, get_mocha_errors
-import shutil
+from helpers.ProjectHelper import (
+    install_npm_packages, fix_eslint_issues, 
+    get_eslint_errors, get_mocha_errors
+)
 import subprocess
 import os
 import re
@@ -20,11 +22,7 @@ class Underscore(ProjectInterface):
 
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix
-        node_modules_dir = '/node_modules'
-        shutil.rmtree(project_copy_path + node_modules_dir)
-        subprocess.run(['cd ' + project_copy_path +
-                        ' && npm install'],
-                       shell=True, capture_output=True, text=True, check=True)
+        install_npm_packages(project_copy_path)
 
     def run_lint_fix(self, code):
         fixed_code = fix_eslint_issues(code, self.dirty_path)

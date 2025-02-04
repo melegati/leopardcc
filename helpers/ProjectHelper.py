@@ -6,6 +6,14 @@ from interfaces.LintError import LintError
 from interfaces.TestError import TestError
 
 
+def install_npm_packages(project_copy_path: str):
+    node_modules_dir = '/node_modules'
+    os.remove(project_copy_path + node_modules_dir)
+    subprocess.run(['cd ' + project_copy_path +
+                    ' && npm install'],
+                    shell=True, capture_output=True, text=True, check=True)
+
+
 def fix_eslint_issues(code: str, dirty_path: str) -> str:
     patch_file_path = dirty_path + "/patch.js"
     with open(patch_file_path, 'w') as patch_file:
