@@ -26,9 +26,7 @@ def compute_cyclomatic_complexity(path: str) -> list[LizardResult]:
     return functions
 
 
-def compute_avg_cc_for_project(path: str) -> float:
-    functions = compute_cyclomatic_complexity(path)
-
+def compute_avg_cc(functions: list[LizardResult]) -> float:
     complexities: list[int] = []
     for fun in functions:
         complexities.append(fun.cyclomatic_complexity)

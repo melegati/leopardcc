@@ -8,7 +8,7 @@ from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler
 from util.CSVWriter import save_time_entries_to_csv
-from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc_for_project
+from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc
 from Refactorer import improve_function
 from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException
@@ -59,6 +59,50 @@ def save_git_diff_patch(repo: Repo, function: Function, log_dir: str, idx: int):
     repo.index.commit(commit_message, skip_hooks=True)
 
 
+def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
+                            idx: int, time_series: list[TimeEntry]) -> TimeEntry:
+    project = function.project
+    
+    if idx == 0:
+        old_functions = compute_cyclomatic_complexity(project.path + project.code_dir)
+        original_avg_project_cc = compute_avg_cc(old_functions)
+        
+        old_prj_cc = original_avg_project_cc
+        old_fn_count = len(old_functions)
+        old_avg_nloc = sum(fun.nloc for fun in old_functions) / len(old_functions)
+    else:
+        old_prj_cc = time_series[idx-1]['new_prj_avg_cc']
+        old_fn_count = time_series[idx-1]['new_fn_count']
+        old_avg_nloc = time_series[idx-1]['new_avg_nloc']
+
+
+    new_functions = compute_cyclomatic_complexity(project.target_path + project.code_dir)
+    new_prj_cc = compute_avg_cc(new_functions)
+    new_fn_count = len(new_functions)
+    new_avg_nloc = sum(fun.nloc for fun in new_functions) / len(new_functions)
+    
+    sent_tokens = llm_wrapper.sent_tokens_count
+    received_tokens = llm_wrapper.received_tokens_count
+
+    entry: TimeEntry = {
+        'iteration': idx,
+        'timestamp': datetime.now(timezone.utc),
+        'function_file': function.relative_path,
+        'function_name': function.lizard_result.long_name,
+        'old_cc': function.old_cc,
+        'new_cc': function.new_cc,
+        'old_prj_avg_cc': old_prj_cc,
+        'new_prj_avg_cc': new_prj_cc,
+        'old_fn_count': old_fn_count,
+        'new_fn_count': new_fn_count,
+        'old_avg_nloc': old_avg_nloc,
+        'new_avg_nloc': new_avg_nloc,
+        'sent_tokens': sent_tokens,
+        'received_tokens': received_tokens
+    }
+    return entry
+
+
 def main() -> None:
     project = Dayjs()
     prompt_strategy = ChoiEtAlPrompt()
@@ -80,14 +124,14 @@ def main() -> None:
 
     repo = Repo(project.target_path)
 
-    original_avg_project_cc = compute_avg_cc_for_project(
-        project.path + project.code_dir)
     time_series: list[TimeEntry] = []
     
     consecutive_exception_count = 0
+    was_keyboard_interrupt_raised = False
     for idx, lizard_result in enumerate(most_complex[:20]):
         try:
-            get_logger().info("Refactoring function #" + str(idx) + ": " + lizard_result.long_name +
+            get_logger().info("Refactoring function #" + str(idx) + 
+                                ": " + lizard_result.long_name +
                                 " from file " + lizard_result.filename +
                                 " with CC: " + str(lizard_result.cyclomatic_complexity))
 
@@ -113,6 +157,10 @@ def main() -> None:
             function.restore_original_code()
             disregarded_functions.append(function)
 
+        except KeyboardInterrupt:
+            was_keyboard_interrupt_raised = True
+            raise
+
         except BaseException as e:
             ++consecutive_exception_count
             get_logger().error(e)
@@ -124,34 +172,21 @@ def main() -> None:
             disregarded_functions.append(function)
 
         finally:
-            old_prj_cc = original_avg_project_cc if idx == 0 else time_series[
-                idx-1]['new_prj_avg_cc']
-            new_prj_cc = compute_avg_cc_for_project(
-                project.dirty_path + project.code_dir)
-            sent_tokens = llm_wrapper.sent_tokens_count
-            received_tokens = llm_wrapper.received_tokens_count
+            if not was_keyboard_interrupt_raised:
+                entry = create_time_series_entry(function=function, llm_wrapper=llm_wrapper, 
+                                                idx=idx, time_series=time_series)
+                time_series.append(entry)
+                csv_path = log_dir + "/" + project.name + ".csv"
+                save_time_entries_to_csv(csv_path, time_series)
 
-            get_logger().info("Old CC of function: " + str(function.old_cc))
-            get_logger().info("New CC of function: " + str(function.new_cc))
-            get_logger().info("Old CC of project: " + str(old_prj_cc))
-            get_logger().info("New CC of project: " + str(new_prj_cc))
-            get_logger().info("LLM-processed tokens: " + str(sent_tokens + received_tokens))
+                get_logger().info("Old CC of function: " + str(entry['old_cc']))
+                get_logger().info("New CC of function: " + str(entry['new_cc']))
+                get_logger().info("Old avg CC of project: " + str(entry['old_prj_avg_cc']))
+                get_logger().info("New avg CC of project: " + str(entry['new_prj_avg_cc']))
+                get_logger().info("LLM-processed tokens: " + str(entry['sent_tokens'] 
+                                    + entry['received_tokens']))
+            
 
-            entry: TimeEntry = {
-                'iteration': idx,
-                'timestamp': datetime.now(timezone.utc),
-                'function_file': function.relative_path,
-                'function_name': function.lizard_result.long_name,
-                'old_cc': function.old_cc,
-                'new_cc': function.new_cc,
-                'old_prj_avg_cc': old_prj_cc,
-                'new_prj_avg_cc': new_prj_cc,
-                'sent_tokens': sent_tokens,
-                'received_tokens': received_tokens
-            }
-            time_series.append(entry)
-            csv_path = log_dir + "/" + project.name + ".csv"
-            save_time_entries_to_csv(csv_path, time_series)
 
 if __name__ == "__main__":
     main()
