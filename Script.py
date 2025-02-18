@@ -9,6 +9,7 @@ from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler
 from util.CSVWriter import save_time_entries_to_csv
 from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc
+from helpers.GitHelper import save_git_diff_patch
 from Refactorer import improve_function
 from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException, Reason
@@ -41,22 +42,6 @@ def prepare_openai_wrapper(log_path: str) -> LLMWrapperInterface:
         model=model)
 
     return llm_wrapper
-
-
-def save_git_diff_patch(repo: Repo, function: Function, log_dir: str, idx: int):
-    diff = repo.git.diff(function.target_path)
-
-    patch_dir = log_dir + '/patches'
-    if not os.path.exists(patch_dir):
-        os.makedirs(patch_dir)
-
-    patch_file_path = patch_dir + '/' + str(idx) + '-' + function.lizard_result.name + '.diff'
-    with open(patch_file_path, "w", encoding="utf-8") as patch_file:
-        patch_file.write(diff)
-    
-    repo.git.add(function.target_path)
-    commit_message = 'apply patch for refactoring iteration ' + str(idx) + ' for fn ' +  function.lizard_result.name
-    repo.index.commit(commit_message, skip_hooks=True)
 
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
