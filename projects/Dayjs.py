@@ -1,7 +1,10 @@
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.TestError import TestError
 from interfaces.LintError import LintError
-from helpers.ProjectHelper import get_eslint_errors, get_jest_errors, install_npm_packages
+from helpers.ProjectHelper import (
+    install_npm_packages, fix_eslint_issues,
+    get_eslint_errors, get_jest_errors, 
+)
 
 
 class Dayjs(ProjectInterface):
@@ -16,6 +19,11 @@ class Dayjs(ProjectInterface):
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix
         install_npm_packages(project_copy_path)
+
+    def run_lint_fix(self, code):
+        fixed_code = fix_eslint_issues(code, self.dirty_path)
+
+        return fixed_code
 
     def get_lint_errors(self):
         lint_command = 'npx eslint src/* test/* build/*'

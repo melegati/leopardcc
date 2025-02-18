@@ -44,7 +44,8 @@ def __get_test_cases_from_errors__(errors: list[TestError], project: ProjectInte
 
 
 class Function:
-    def __init__(self, lizard_result: LizardResult, project: ProjectInterface, llm_wrapper: LLMWrapperInterface, strategy: PromptStrategyInterface):
+    def __init__(self, lizard_result: LizardResult, project: ProjectInterface, 
+                llm_wrapper: LLMWrapperInterface, strategy: PromptStrategyInterface):
         self.lizard_result = lizard_result
         self.llm_wrapper = llm_wrapper
         self.strategy = strategy
@@ -99,7 +100,10 @@ class Function:
         self.__apply_dirty_changes__(postprocessed_code)
 
     def refactor_with_lint_errors(self, errors: list[LintError]) -> None:
-        prompt = self.strategy.linting_explanation_prompt(errors)
+        errors_sorted = sorted(errors, key=lambda error: error['severity'], reverse=True)
+        top_errors = errors_sorted[:20]
+        
+        prompt = self.strategy.linting_explanation_prompt(top_errors)
         explanation = self.llm_wrapper.send_message(prompt)
 
         prompt = self.strategy.linting_fix_prompt()

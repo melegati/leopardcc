@@ -7,3 +7,4 @@ class LintError(TypedDict):
     file: str
     target_line: int
     erroneous_code: str
+    severity: int

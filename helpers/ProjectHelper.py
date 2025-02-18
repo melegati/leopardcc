@@ -35,24 +35,30 @@ def fix_eslint_issues(code: str, dirty_path: str) -> str:
     return code
 
 
+def __extract_eslint_error(message: dict[str, str], file_path: str) -> LintError:
+    target_line = int(message['line'])
+    with open(file_path, 'r') as code_file:
+        content = code_file.readlines()
+    erroneous_code = content[target_line - 1]
+
+    error: LintError = {
+        'rule_id': message['ruleId'],
+        'message': message['message'],
+        'file': file_path,
+        'target_line': target_line,
+        'erroneous_code': erroneous_code,
+        'severity': int(message['severity'])
+    }
+    return error
+
+
 def __get_eslint_errors_from_json_output(output: bytes | str) -> list[LintError]:
     lint_info = json.loads(output)
     errors: list[LintError] = []
     for file_object in lint_info:
         for message in file_object['messages']:
             file_path = file_object['filePath']
-            target_line = message['line']
-            with open(file_path, 'r') as code_file:
-                content = code_file.readlines()
-            erroneous_code = content[target_line - 1]
-
-            error: LintError = {
-                'rule_id': message['ruleId'],
-                'message': message['message'],
-                'file': file_path,
-                'target_line': target_line,
-                'erroneous_code': erroneous_code
-            }
+            error = __extract_eslint_error(message, file_path)
             errors.append(error)
 
     return errors
