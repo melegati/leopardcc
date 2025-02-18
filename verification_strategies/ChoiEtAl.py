@@ -21,7 +21,7 @@ class ChoiEtAl(VerificationStrategyInterface):
             lint_errors = function.project.get_lint_errors()
             does_linting_pass = len(lint_errors) == 0
             if not does_linting_pass:
-                raise NotImprovableException(function, "linting")
+                raise NotImprovableException(function, "failed linting")
 
     def verify_unit_tests(self, function):
         test_errors = function.project.get_test_errors()
@@ -35,7 +35,7 @@ class ChoiEtAl(VerificationStrategyInterface):
             test_errors = function.project.get_test_errors()
             do_tests_pass = len(test_errors) == 0
             if not do_tests_pass:
-                raise NotImprovableException(function, "unit tests")
+                raise NotImprovableException(function, "failed unit tests")
 
     def verify_improvement(self, function):
         is_improved = function.new_cc < function.old_cc
@@ -48,4 +48,4 @@ class ChoiEtAl(VerificationStrategyInterface):
 
             is_improved = function.new_cc < function.old_cc
             if not is_improved:
-                raise NotImprovableException(function, "complexity reduction")
+                raise NotImprovableException(function, "unsatisfactory improvement")

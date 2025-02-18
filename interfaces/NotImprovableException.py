@@ -1,7 +1,7 @@
 from .Function import Function
 from typing import Literal
 
-Reason = Literal['linting', 'unit tests', 'complexity reduction']
+Reason = Literal['failed linting', 'failed unit tests', 'unsatisfactory improvement']
 
 
 class NotImprovableException(Exception):
@@ -9,5 +9,5 @@ class NotImprovableException(Exception):
         self.function = function
         self.reason = reason
         self.message = "Function " + function.lizard_result.name + \
-            " in file " + function.lizard_result.filename + " is not improvable due to unsatisfactory " + reason
+            " in file " + function.lizard_result.filename + " is not improvable due to " + reason
         super().__init__(self.message)

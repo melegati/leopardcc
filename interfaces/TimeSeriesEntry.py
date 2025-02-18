@@ -3,7 +3,7 @@ from typing import TypedDict
 from typing import Literal
 from .NotImprovableException import Reason
 
-ReachedStage = Reason | Literal['success']
+Result = Reason | Literal['success', 'other error']
 
 class TimeEntry(TypedDict):
     iteration: int
@@ -22,4 +22,4 @@ class TimeEntry(TypedDict):
     new_avg_nloc: float
     sent_tokens: int
     received_tokens: int
-    reached_stage: ReachedStage
+    result: Result
