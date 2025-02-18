@@ -38,7 +38,7 @@ class ChoiEtAl(PromptStrategyInterface):
         return prompt
 
     def linting_fix_prompt(self) -> str:
-        prompt = """Fix your method by utilizing the error message, the linting messages, the erroneous code,
+        prompt = """Fix your method by utilizing the linting messages, the erroneous code,
         your explanation and the original method. Provide the javascript method within a code block.
         Do not explain anything in natural language."""
 
