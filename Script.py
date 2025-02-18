@@ -11,7 +11,7 @@ from util.CSVWriter import save_time_entries_to_csv
 from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc
 from Refactorer import improve_function
 from interfaces.Function import Function
-from interfaces.NotImprovableException import NotImprovableException
+from interfaces.NotImprovableException import NotImprovableException, Reason
 from interfaces.LlmWrapperInterface import LLMWrapperInterface
 import os
 from interfaces.TimeSeriesEntry import TimeEntry
@@ -60,7 +60,7 @@ def save_git_diff_patch(repo: Repo, function: Function, log_dir: str, idx: int):
 
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
-                            idx: int, time_series: list[TimeEntry]) -> TimeEntry:
+                            idx: int, time_series: list[TimeEntry], reason: Reason | None) -> TimeEntry:
     project = function.project
     
     if idx == 0:
@@ -98,7 +98,8 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
         'old_avg_nloc': old_avg_nloc,
         'new_avg_nloc': new_avg_nloc,
         'sent_tokens': sent_tokens,
-        'received_tokens': received_tokens
+        'received_tokens': received_tokens,
+        'reached_stage': 'success' if reason is None else reason
     }
     return entry
 
@@ -129,6 +130,7 @@ def main() -> None:
     consecutive_exception_count = 0
     was_keyboard_interrupt_raised = False
     for idx, lizard_result in enumerate(most_complex[:20]):
+        reason_why_improvement_failed: Reason | None = None
         try:
             get_logger().info("Refactoring function #" + str(idx) + 
                                 ": " + lizard_result.long_name +
@@ -154,6 +156,7 @@ def main() -> None:
         except NotImprovableException as e:
             get_logger().info("Disregarding function due to unsatisfactory " + e.reason)
             input("Press Enter to continue")
+            reason_why_improvement_failed = e.reason
             function.restore_original_code()
             disregarded_functions.append(function)
 
@@ -174,7 +177,7 @@ def main() -> None:
         finally:
             if not was_keyboard_interrupt_raised:
                 entry = create_time_series_entry(function=function, llm_wrapper=llm_wrapper, 
-                                                idx=idx, time_series=time_series)
+                                                idx=idx, time_series=time_series, reason=reason_why_improvement_failed)
                 time_series.append(entry)
                 csv_path = log_dir + "/" + project.name + ".csv"
                 save_time_entries_to_csv(csv_path, time_series)
