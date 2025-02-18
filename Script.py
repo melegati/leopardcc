@@ -143,8 +143,7 @@ def main() -> None:
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
 
-            improve_function(function, improved_functions +
-                                disregarded_functions, verification_strategy)
+            improve_function(function, verification_strategy)
 
             get_logger().info("Function successfully improved")
             input("Press Enter to continue")

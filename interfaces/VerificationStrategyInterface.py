@@ -22,6 +22,6 @@ class VerificationStrategyInterface(ABC):
         pass
 
     @abstractmethod
-    def verify_improvement(self, function: Function, functions_to_ignore: list[Function]):
+    def verify_improvement(self, function: Function):
         """Compares CC of refactored with original function and attempts to further improve refactoring if not satisfactory"""
         pass

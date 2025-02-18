@@ -1,5 +1,4 @@
 from interfaces.VerificationStrategyInterface import VerificationStrategyInterface
-from helpers.LizardHelper import compute_cyclomatic_complexity, is_new_function_improved, get_functions_sorted_by_complexity, measure_code_cc
 from util.Logger import get_logger
 from interfaces.NotImprovableException import NotImprovableException
 
@@ -38,9 +37,7 @@ class ChoiEtAl(VerificationStrategyInterface):
             if not do_tests_pass:
                 raise NotImprovableException(function, "unit tests")
 
-    def verify_improvement(self, function, functions_to_ignore):
-        new_cc = measure_code_cc(function.current_code_in_dirty)
-        is_improved = new_cc < function.old_cc
+    def verify_improvement(self, function):
 
         if not is_improved:
             get_logger().info("Improvement is not satisfying, attempting to fix")
