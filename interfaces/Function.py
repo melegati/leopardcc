@@ -4,7 +4,7 @@ from .PromptStrategyInterface import PromptStrategyInterface
 from .LizardResult import LizardResult
 from .LintError import LintError
 from .TestError import TestError
-from helpers.LizardHelper import extract_function_code
+from helpers.LizardHelper import extract_function_code, compute_cc_from_code
 
 
 def __patch_code__(path: str, old_code: str, new_code: str) -> None:
@@ -82,6 +82,10 @@ class Function:
 
     def __apply_dirty_changes__(self, changed_code: str):
         self.history.append(changed_code)
+        
+        new_lizard_result = compute_cc_from_code(changed_code)
+        self.new_cc = new_lizard_result.cyclomatic_complexity
+        
         __patch_code__(self.dirty_path,
                        old_code=self.history[-2], new_code=self.history[-1])
 

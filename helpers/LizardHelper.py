@@ -6,14 +6,6 @@ from interfaces.TestError import TestError
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.LizardResult import LizardResult
 
-def measure_code_cc(code: str) -> int:
-    analysis = lizard.analyze_file.analyze_source_code("Test.js", code)
-    functions = analysis.function_list
-    complexities = list(fun.cyclomatic_complexity for fun in functions)
-    highest_complexity = sorted(complexities, reverse=True)[0]
-
-    return highest_complexity
-
 def compute_cyclomatic_complexity(path: str) -> list[LizardResult]:
     extensions = lizard.get_extensions(extension_names=["io"])
     analysis = lizard.analyze(paths=[path], exts=extensions)
@@ -41,12 +33,13 @@ def get_functions_sorted_by_complexity(functions: list[LizardResult]) -> list[Li
         functions, key=lambda fun: fun.cyclomatic_complexity, reverse=True)
     return result
 
+def compute_cc_from_code(code: str) -> LizardResult:
+    analysis = lizard.analyze_file.analyze_source_code("Test.js", code)
+    functions = analysis.function_list
+    functions_sorted = get_functions_sorted_by_complexity(functions)
 
-def is_new_function_improved(old_function: LizardResult, new_function: LizardResult) -> bool:
-    old_cyclomatic = old_function.cyclomatic_complexity
-    new_cyclomatic = new_function.cyclomatic_complexity
-    return new_cyclomatic < old_cyclomatic
-
+    highest_complexity = functions_sorted[0]
+    return highest_complexity
 
 def extract_function_code(function: LizardResult) -> str:
     with open(function.filename) as file:

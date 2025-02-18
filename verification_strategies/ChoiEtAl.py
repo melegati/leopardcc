@@ -38,6 +38,7 @@ class ChoiEtAl(VerificationStrategyInterface):
                 raise NotImprovableException(function, "unit tests")
 
     def verify_improvement(self, function):
+        is_improved = function.new_cc < function.old_cc
 
         if not is_improved:
             get_logger().info("Improvement is not satisfying, attempting to fix")
@@ -45,9 +46,6 @@ class ChoiEtAl(VerificationStrategyInterface):
             self.verify_linting(function)
             self.verify_unit_tests(function)
 
-            new_cc = measure_code_cc(function.current_code_in_dirty)
-            is_improved = new_cc < function.old_cc
+            is_improved = function.new_cc < function.old_cc
             if not is_improved:
                 raise NotImprovableException(function, "complexity reduction")
-
-        function.new_cc = new_cc
