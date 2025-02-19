@@ -83,9 +83,6 @@ class Function:
     def __apply_dirty_changes__(self, changed_code: str):
         self.history.append(changed_code)
         
-        new_lizard_result = compute_cc_from_code(changed_code)
-        self.new_cc = new_lizard_result.cyclomatic_complexity
-        
         __patch_code__(self.dirty_path,
                        old_code=self.history[-2], new_code=self.history[-1])
 
@@ -95,6 +92,10 @@ class Function:
         
         return lint_fixed_code
 
+    def __update_new_cc__(self) -> None:
+        new_cc = compute_cc_from_code(self.current_code_in_dirty)
+        self.new_cc = new_cc
+
     def initial_refactor(self) -> None:
         prompt = self.strategy.initial_prompt(self.history[-1])
 
@@ -102,6 +103,7 @@ class Function:
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
+        self.__update_new_cc__()
 
     def refactor_with_lint_errors(self, errors: list[LintError]) -> None:
         errors_sorted = sorted(errors, key=lambda error: error['severity'], reverse=True)
@@ -115,6 +117,7 @@ class Function:
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
+        self.__update_new_cc__()
 
     def refactor_with_test_errors(self, errors: list[TestError]) -> None:
         top_errors = errors[:10]
@@ -128,6 +131,7 @@ class Function:
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
+        self.__update_new_cc__()
 
     def refactor_for_better_improvement(self) -> None:
         prompt = self.strategy.better_improvement_explanation_prompt()
@@ -138,11 +142,13 @@ class Function:
         postprocessed_code = self.__process_llm_code__(llm_response_code)
 
         self.__apply_dirty_changes__(postprocessed_code)
+        self.__update_new_cc__()
 
     def restore_original_code(self) -> None:
         __patch_code__(self.dirty_path,
                        old_code=self.history[-1], new_code=self.history[0])
         self.history.append(self.history[0])
+        self.new_cc = self.old_cc
 
     def apply_changes_to_target(self) -> None:
         __patch_code__(self.target_path,
