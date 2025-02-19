@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from llm_wrappers.OpenAIWrapper import OpenAIWrapper
-from projects.Expressjs import Expressjs
-from projects.D3Shape import D3Shape
-from projects.Underscore import Underscore
 from projects.Dayjs import Dayjs
+from projects.Expressjs import Expressjs
+from projects.Ramda import Ramda
+from projects.Underscore import Underscore
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler
@@ -14,6 +14,9 @@ from Refactorer import improve_function
 from interfaces.Function import Function
 from interfaces.NotImprovableException import NotImprovableException
 from interfaces.LlmWrapperInterface import LLMWrapperInterface
+from interfaces.ProjectInterface import ProjectInterface
+from interfaces.PromptStrategyInterface import PromptStrategyInterface
+from interfaces.VerificationStrategyInterface import VerificationStrategyInterface
 import os
 from interfaces.TimeSeriesEntry import TimeEntry, Result
 from git import Repo
@@ -89,10 +92,9 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     return entry
 
 
-def main() -> None:
-    project = Dayjs()
-    prompt_strategy = ChoiEtAlPrompt()
-    verification_strategy = ChoiEtAlVerification()
+def main(project: ProjectInterface = Ramda(),
+         prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
+         verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification()) -> None:
 
     get_logger().info("Refactoring project " + project.name)
     get_logger().info("Prompt strategy: " + prompt_strategy.name)
