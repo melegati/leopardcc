@@ -50,7 +50,7 @@ class ChoiEtAl(PromptStrategyInterface):
         stack_united = '\n\n'.join(list(stacks))
         test_cases_united = '\n\n'.join(test_cases)
 
-        prompt = """The refactored JavaScript method you provided does not pass the unit test suite.
+        prompt = """The refactored JavaScript method you provided does not pass the test suite.
         The error messages and the call stack look like:
         ```
         {message_stack}
@@ -59,7 +59,7 @@ class ChoiEtAl(PromptStrategyInterface):
         ```
         {tests}
         ```
-        Explain why your code does not pass the unit tests.""".format(message_stack=stack_united, tests=test_cases_united)
+        Explain why your code does not pass the tests.""".format(message_stack=stack_united, tests=test_cases_united)
 
         return prompt
 

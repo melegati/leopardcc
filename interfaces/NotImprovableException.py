@@ -1,7 +1,7 @@
 from .Function import Function
 from typing import Literal
 
-Reason = Literal['failed linting', 'failed unit tests', 'unsatisfactory improvement']
+Reason = Literal['failed linting', 'failed tests', 'unsatisfactory improvement']
 
 
 class NotImprovableException(Exception):

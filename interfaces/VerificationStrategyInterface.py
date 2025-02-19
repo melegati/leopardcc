@@ -17,8 +17,8 @@ class VerificationStrategyInterface(ABC):
         pass
 
     @abstractmethod
-    def verify_unit_tests(self, function: Function):
-        """Runs unit tests and attempts to fix potentially failing tests"""
+    def verify_tests(self, function: Function):
+        """Runs tests and attempts to fix potentially failing tests"""
         pass
 
     @abstractmethod

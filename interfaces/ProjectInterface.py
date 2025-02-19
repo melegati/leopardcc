@@ -75,7 +75,7 @@ class ProjectInterface(ABC):
 
     @abstractmethod
     def get_test_errors(self) -> list[TestError]:
-        """Runs projects unit tests and returns list of failing tests.
+        """Runs tests and returns list of failing tests.
         If no test fails it returns an empty list."""
         pass
 
