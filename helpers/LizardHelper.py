@@ -33,12 +33,19 @@ def get_functions_sorted_by_complexity(functions: list[LizardResult]) -> list[Li
         functions, key=lambda fun: fun.cyclomatic_complexity, reverse=True)
     return result
 
-def compute_cc_from_code(code: str) -> LizardResult:
+def compute_cc_from_code(code: str) -> int:
     analysis = lizard.analyze_file.analyze_source_code("Test.js", code)
     functions = analysis.function_list
-    functions_sorted = get_functions_sorted_by_complexity(functions)
+    complexities = list(fun.cyclomatic_complexity for fun in functions)
+    complexities_sorted = sorted(complexities, reverse=True)
 
-    highest_complexity = functions_sorted[0]
+    try:
+        highest_complexity = complexities_sorted[0]
+    except IndexError as e:
+        print("Index error while measuring cc, caused by the following code: ")
+        print(code)
+        raise
+
     return highest_complexity
 
 def extract_function_code(function: LizardResult) -> str:
