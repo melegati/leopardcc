@@ -17,7 +17,7 @@ class OpenAIWrapper(LLMWrapperInterface):
     
     def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
         self.api_key = api_key
-        self.model = model
+        self.__model = model
         self.log_path = log_path
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
@@ -26,6 +26,10 @@ class OpenAIWrapper(LLMWrapperInterface):
         self.__sent_tokens_count = 0
         self.__received_tokens_count = 0
     
+    @property
+    def model(self):
+        return self.__model
+
     @property
     def sent_tokens_count(self):
         return self.__sent_tokens_count
@@ -76,7 +80,7 @@ class OpenAIWrapper(LLMWrapperInterface):
         while not was_completion_successful:
             try:
                 completion = self.client.chat.completions.create(
-                    model=self.model,
+                    model=self.__model,
                     messages=context
                 )
                 was_completion_successful = True

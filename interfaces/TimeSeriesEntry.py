@@ -7,6 +7,11 @@ Result = Reason | Literal['success', 'other error']
 
 class TimeEntry(TypedDict):
     iteration: int
+    project: str
+    prompt_strategy: str
+    verification_strategy: str
+    model: str
+
     timestamp: datetime
 
     function_file: str

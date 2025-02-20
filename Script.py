@@ -45,7 +45,10 @@ def prepare_openai_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
 
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
-                            idx: int, time_series: list[TimeEntry], result: Result) -> TimeEntry:
+                            idx: int, time_series: list[TimeEntry], result: Result,
+                            prompt_strategy: PromptStrategyInterface,
+                            verification_strategy: VerificationStrategyInterface) -> TimeEntry:
+    
     project = function.project
     
     if idx == 0:
@@ -71,6 +74,10 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
 
     entry: TimeEntry = {
         'iteration': idx,
+        'project': project.name,
+        'prompt_strategy': prompt_strategy.name,
+        'verification_strategy': verification_strategy.name,
+        'model': function.llm_wrapper.model,
         'timestamp': datetime.now(timezone.utc),
         'function_file': function.relative_path,
         'function_name': function.lizard_result.long_name,
@@ -166,7 +173,9 @@ def main(project: ProjectInterface = Ramda(),
             if not was_keyboard_interrupt_raised:
                 entry = create_time_series_entry(function=function, llm_wrapper=llm_wrapper, 
                                                 idx=idx, time_series=time_series, 
-                                                result=result if result is not None else 'other error')
+                                                result=result if result is not None else 'other error',
+                                                prompt_strategy=prompt_strategy,
+                                                verification_strategy=verification_strategy)
                 time_series.append(entry)
                 csv_path = log_dir + "/" + project.name + ".csv"
                 save_time_entries_to_csv(csv_path, time_series)

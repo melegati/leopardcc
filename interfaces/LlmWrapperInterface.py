@@ -10,6 +10,11 @@ class LLMWrapperInterface(ABC):
     
     @property
     @abstractmethod
+    def model(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
     def sent_tokens_count(self) -> int:
         pass
 
