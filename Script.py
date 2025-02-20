@@ -6,7 +6,7 @@ from projects.Ramda import Ramda
 from projects.Underscore import Underscore
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
-from util.Logger import get_logger, add_log_file_handler
+from util.Logger import get_logger, add_log_file_handler, reset_logger
 from util.CSVWriter import save_time_entries_to_csv
 from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_sorted_by_complexity, compute_avg_cc
 from helpers.GitHelper import save_git_diff_patch
@@ -32,12 +32,9 @@ def prepare_log_dir(project_name: str) -> str:
     return log_dir
 
 
-def prepare_openai_wrapper(log_path: str) -> LLMWrapperInterface:
+def prepare_openai_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
     with open('openai-key.txt', "r", encoding="utf-8") as key_file:
         api_key = key_file.read()
-
-    model = "gpt-4o-mini"
-    get_logger().info("Creating OpenAIWrapper for model " + model)
 
     llm_wrapper = OpenAIWrapper(
         api_key=api_key,
@@ -94,14 +91,17 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
 
 def main(project: ProjectInterface = Ramda(),
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
-         verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification()) -> None:
+         verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
+         model: str = "gpt-4o-mini") -> None:
 
-    get_logger().info("Refactoring project " + project.name)
-    get_logger().info("Prompt strategy: " + prompt_strategy.name)
-    get_logger().info("Verification strategy: " + verification_strategy.name)
-
+    reset_logger()
     log_dir = prepare_log_dir(project.name)
     add_log_file_handler(log_dir + "/log.txt")
+
+    get_logger().info("Refactoring project " + project.name)
+    get_logger().info("LLM: " + model)
+    get_logger().info("Prompt strategy: " + prompt_strategy.name)
+    get_logger().info("Verification strategy: " + verification_strategy.name)
 
     complexity_info = compute_cyclomatic_complexity(
         project.path + project.code_dir)
@@ -117,18 +117,18 @@ def main(project: ProjectInterface = Ramda(),
     consecutive_exception_count = 0
     was_keyboard_interrupt_raised = False
     for idx, lizard_result in enumerate(most_complex[:20]):
+        idx = idx + 1
         result: Result | None = None
         try:
-            get_logger().info("Refactoring function #" + str(idx) + 
-                                ": " + lizard_result.long_name +
-                                " from file " + lizard_result.filename +
-                                " with CC: " + str(lizard_result.cyclomatic_complexity))
-
             llm_wrapper_logpath = log_dir + \
                 "/conversations/" + project.name + "-" + str(idx) + ".json"
-            llm_wrapper: LLMWrapperInterface = prepare_openai_wrapper(llm_wrapper_logpath)
+            llm_wrapper: LLMWrapperInterface = prepare_openai_wrapper(model, llm_wrapper_logpath)
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
+            get_logger().info("Refactoring function #" + str(idx) + 
+                                ": " + lizard_result.long_name +
+                                " from file " + function.relative_path +
+                                " with CC: " + str(function.old_cc))
 
             improve_function(function, verification_strategy)
 
@@ -154,6 +154,7 @@ def main(project: ProjectInterface = Ramda(),
         except BaseException as e:
             ++consecutive_exception_count
             get_logger().error(e)
+            get_logger().info("Disregarding function due to other error")
 
             if consecutive_exception_count >= 3:
                 raise e

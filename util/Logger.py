@@ -38,3 +38,9 @@ def add_log_file_handler(path: str):
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(__get_formatter())
     get_logger().addHandler(file_handler)
+
+def reset_logger():
+    global _logger
+    if _logger is not None:
+        _logger.handlers.clear()
+        _logger = None
