@@ -5,6 +5,7 @@ from projects.Expressjs import Expressjs
 from projects.Ramda import Ramda
 from projects.Underscore import Underscore
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
+from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler, reset_logger
 from util.CSVWriter import save_time_entries_to_csv
