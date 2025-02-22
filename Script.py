@@ -52,7 +52,7 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     
     project = function.project
     
-    if idx == 0:
+    if idx == 1:
         old_functions = compute_cyclomatic_complexity(project.path + project.code_dir)
         original_avg_project_cc = compute_avg_cc(old_functions)
         
@@ -60,9 +60,9 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
         old_fn_count = len(old_functions)
         old_avg_nloc = sum(fun.nloc for fun in old_functions) / len(old_functions)
     else:
-        old_prj_cc = time_series[idx-1]['new_prj_avg_cc']
-        old_fn_count = time_series[idx-1]['new_fn_count']
-        old_avg_nloc = time_series[idx-1]['new_avg_nloc']
+        old_prj_cc = time_series[idx-2]['new_prj_avg_cc']
+        old_fn_count = time_series[idx-2]['new_fn_count']
+        old_avg_nloc = time_series[idx-2]['new_avg_nloc']
 
 
     new_functions = compute_cyclomatic_complexity(project.target_path + project.code_dir)
@@ -142,7 +142,6 @@ def main(project: ProjectInterface = Ramda(),
 
             result = 'success'
             get_logger().info("Function successfully improved")
-            input("Press Enter to continue")
             function.apply_changes_to_target()
             improved_functions.append(function)
             save_git_diff_patch(repo, function, log_dir, idx)
@@ -150,7 +149,6 @@ def main(project: ProjectInterface = Ramda(),
 
         except NotImprovableException as e:
             get_logger().info("Disregarding function due to " + e.reason)
-            input("Press Enter to continue")
             result = e.reason
             function.restore_original_code()
             disregarded_functions.append(function)
