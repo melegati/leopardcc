@@ -10,7 +10,7 @@ from helpers.ProjectHelper import (
 class D3Shape(ProjectInterface):
     @property
     def path(self):
-        return '/media/lebkuchen/storage-disk/Repos/thesis-projects/d3-shape'
+        return 'repos/d3-shape'
 
     @property
     def code_dir(self):

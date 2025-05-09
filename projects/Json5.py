@@ -14,7 +14,7 @@ import json
 class Json5(ProjectInterface):
     @property
     def path(self):
-        return '/media/lebkuchen/storage-disk/Repos/thesis-projects/json5'
+        return 'repos/json5'
 
     @property
     def code_dir(self):

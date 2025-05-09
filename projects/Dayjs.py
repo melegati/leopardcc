@@ -10,7 +10,7 @@ from helpers.ProjectHelper import (
 class Dayjs(ProjectInterface):
     @property
     def path(self):
-        return '/media/lebkuchen/storage-disk/Repos/thesis-projects/dayjs'
+        return 'repos/dayjs'
 
     @property
     def code_dir(self):

@@ -10,7 +10,7 @@ from helpers.ProjectHelper import (
 class Ramda(ProjectInterface):
     @property
     def path(self):
-        return '/media/lebkuchen/storage-disk/Repos/thesis-projects/ramda'
+        return 'repos/ramda'
 
     @property
     def code_dir(self):

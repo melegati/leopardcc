@@ -10,7 +10,7 @@ from helpers.ProjectHelper import (
 class Expressjs(ProjectInterface):
     @property
     def path(self):
-        return '/media/lebkuchen/storage-disk/Repos/thesis-projects/express'
+        return 'repos/express'
 
     @property
     def code_dir(self):
