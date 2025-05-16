@@ -3,24 +3,27 @@ import re
 import os
 import shutil
 import subprocess
+from pathlib import Path
 from interfaces.LintError import LintError
 from interfaces.TestError import TestError
 
 
-def install_npm_packages(project_copy_path: str):
+def install_npm_packages(project_copy_path: str, package_manager_command: str='npm'):
     node_modules_dir = '/node_modules'
-    shutil.rmtree(project_copy_path + node_modules_dir)
+    dirpath = Path(project_copy_path) / node_modules_dir
+    if dirpath.exists() and dirpath.is_dir():
+        shutil.rmtree(dirpath)
     subprocess.run(['cd ' + project_copy_path +
-                    ' && npm install'],
+                    ' && ' + package_manager_command + ' install'],
                     shell=True, capture_output=True, text=True, check=True)
 
 
-def fix_eslint_issues(code: str, dirty_path: str) -> str:
+def fix_eslint_issues(code: str, dirty_path: str, package_manager_command: str='npx') -> str:
     patch_file_path = dirty_path + "/patch.js"
     with open(patch_file_path, 'w') as patch_file:
         patch_file.write(code)
     
-    lint_fix_command = 'cat patch.js | npx eslint --stdin --format json --fix-dry-run'
+    lint_fix_command = 'cat patch.js | ' + package_manager_command + ' eslint --stdin --format json --fix-dry-run'
     proc = subprocess.run(['cd ' + dirty_path + ' && ' + lint_fix_command],
                         shell=True, capture_output=True, text=True, check=False)
 
@@ -187,3 +190,55 @@ def get_jest_errors(dirty_path: str, test_command: str, line_pattern: str) -> li
         if os.path.exists(jest_json_output_path):
             os.remove(jest_json_output_path) 
         return errors
+    
+def __get_vitest_errors_from_json_output(jest_json_output: str, line_pattern: str) -> list[TestError]:
+    test_info = json.loads(jest_json_output)
+    test_results = test_info['testResults']
+
+    errors: list[TestError] = []
+    for test in test_results:
+        if test['status'] == "failed":
+            for assertion in test['assertionResults']:
+                if assertion['status'] == "failed":
+                    ansi_code_escape_pattern = r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])'
+                    cleaned_messages = re.sub(ansi_code_escape_pattern, "", "".join(assertion['failureMessages']))
+                    
+                    error: TestError = {
+                        'expectation': assertion['fullName'],
+                        'message_stack': cleaned_messages,
+                        'test_file': test['name'],
+                        'target_line': None
+                    }
+                    line_match = re.search(line_pattern, error['message_stack'])
+                    if line_match is not None:
+                        error['target_line'] = int(line_match.group(1))
+
+                    errors.append(error)
+
+    return errors
+
+def get_vitest_errors(dirty_path: str, test_command: str, line_pattern: str) -> list[TestError]:
+    try:
+        vitest_json_name = 'vitest-output.json'
+        output_options = '  --reporter=json --outputFile=' + vitest_json_name
+        test_command +=  output_options
+
+        vitest_json_output_path = dirty_path + '/' + vitest_json_name
+
+        subprocess.run(['cd ' + dirty_path + ' && ' + test_command],
+                        shell=True, capture_output=True, text=True, check=True, timeout=30)
+        
+        if os.path.exists(vitest_json_output_path):
+            os.remove(vitest_json_output_path) 
+        
+        return []
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        with open(vitest_json_output_path) as jest_json_file:
+            jest_json_output = jest_json_file.read()
+
+        errors = __get_vitest_errors_from_json_output(jest_json_output, line_pattern)
+
+        if os.path.exists(vitest_json_output_path):
+            os.remove(vitest_json_output_path) 
+        return errors   

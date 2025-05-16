@@ -4,6 +4,7 @@ from projects.Dayjs import Dayjs
 from projects.Expressjs import Expressjs
 from projects.Ramda import Ramda
 from projects.Underscore import Underscore
+from projects.Svelte import Svelte
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
@@ -21,6 +22,7 @@ from interfaces.VerificationStrategyInterface import VerificationStrategyInterfa
 import os
 from interfaces.TimeSeriesEntry import TimeEntry, Result
 from git import Repo
+import traceback
 
 
 def prepare_log_dir(project_name: str) -> str:
@@ -97,7 +99,7 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     return entry
 
 
-def main(project: ProjectInterface = Ramda(),
+def main(project: ProjectInterface = Svelte(),
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
          model: str = "gpt-4o-mini") -> None:
@@ -111,8 +113,7 @@ def main(project: ProjectInterface = Ramda(),
     get_logger().info("Prompt strategy: " + prompt_strategy.name)
     get_logger().info("Verification strategy: " + verification_strategy.name)
 
-    complexity_info = compute_cyclomatic_complexity(
-        project.path + project.code_dir)
+    complexity_info = compute_cyclomatic_complexity(project.path + project.code_dir)
     most_complex = get_functions_sorted_by_complexity(complexity_info)
 
     improved_functions: list[Function] = list()
@@ -160,6 +161,7 @@ def main(project: ProjectInterface = Ramda(),
         except BaseException as e:
             ++consecutive_exception_count
             get_logger().error(e)
+            get_logger().error(traceback.format_exc())
             get_logger().info("Disregarding function due to other error")
 
             if consecutive_exception_count >= 3:
