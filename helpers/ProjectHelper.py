@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from interfaces.LintError import LintError
 from interfaces.TestError import TestError
+from tap import parser #type: ignore
 
 
 def install_npm_packages(project_copy_path: str, package_manager_command: str='npm'):
@@ -267,3 +268,52 @@ def get_vitest_errors(dirty_path: str, test_command: str, line_pattern: str) -> 
         if os.path.exists(vitest_json_output_path):
             os.remove(vitest_json_output_path) 
         return errors   
+    
+def __parse_tap_output(test_output: str, file_line_pattern)-> list[TestError]:
+    tap_parser = parser.Parser()
+    tap_file = tap_parser.parse_text(test_output)
+    
+    errors: list[TestError] = []
+    for line in tap_file:
+        if line.category == 'test' and not line.ok:
+            regex_match = re.search(file_line_pattern, line.yaml_block['stack'])
+            if regex_match is not None:
+                test_file = regex_match.group(1)
+                test_line = regex_match.group(2)
+
+            error: TestError = {
+                'expectation': line.description,
+                'message_stack': line.yaml_block['message'],
+                'test_file': test_file,
+                'target_line': int(test_line)
+            }
+            errors.append(error)
+
+    return errors
+
+def get_tap_errors(dirty_path: str, test_command: str, line_pattern: str) -> list[TestError]:
+    try:
+        output_file_name = 'output.tap'
+        test_command = test_command + ' > ' + output_file_name
+        
+        output_path = dirty_path + '/' + output_file_name
+        
+        result = subprocess.run(test_command, cwd=dirty_path, shell=True, check=True, timeout=120)
+        if result.returncode != 0:
+            pass
+            # raise subprocess.CalledProcessError(result.returncode, test_command)
+        
+        if os.path.exists(output_path):
+            os.remove(output_path) 
+        return []
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        with open(output_path, 'r') as output_file:
+            test_output = output_file.read()
+
+        
+        errors = __parse_tap_output(test_output, line_pattern)
+
+        if os.path.exists(output_path):
+            os.remove(output_path) 
+        return errors
