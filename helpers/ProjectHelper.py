@@ -76,7 +76,7 @@ def get_eslint_errors(dirty_path: str, lint_command: str) -> list[LintError]:
         eslint_json_output_path = dirty_path + '/' + eslint_json_name
 
         subprocess.run(['cd ' + dirty_path + ' && ' + lint_command],
-                        shell=True, capture_output=True, text=True, check=True, timeout=30)
+                        shell=True, capture_output=True, text=True, check=True, timeout=120)
         
         if os.path.exists(eslint_json_output_path):
             os.remove(eslint_json_output_path) 
@@ -226,7 +226,7 @@ def get_vitest_errors(dirty_path: str, test_command: str, line_pattern: str) -> 
         vitest_json_output_path = dirty_path + '/' + vitest_json_name
 
         subprocess.run(['cd ' + dirty_path + ' && ' + test_command],
-                        shell=True, capture_output=True, text=True, check=True, timeout=30)
+                        shell=True, capture_output=True, text=True, check=True, timeout=120)
         
         if os.path.exists(vitest_json_output_path):
             os.remove(vitest_json_output_path) 

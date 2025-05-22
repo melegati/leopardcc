@@ -25,18 +25,17 @@ class Svelte(ProjectInterface):
         
 
     def run_lint_fix(self, code):
-        fixed_code = fix_eslint_issues(code, self.dirty_path, package_manager_command='pnpx')
+        fixed_code = fix_eslint_issues(code, self.dirty_path, package_manager_command='pnpm')
 
         return fixed_code
 
     def get_lint_errors(self):
         lint_command = 'pnpm eslint'
         errors = get_eslint_errors(self.dirty_path, lint_command)
-        print("Errors: " + str(len(errors)))
         return errors
 
     def get_test_errors(self):
-        test_command = 'pnpx vitest run'
+        test_command = 'pnpm vitest run'
         line_pattern = r' *at Context.<anonymous> \([^\d]+:(\d+):\d+\)'
         
         errors = get_vitest_errors(self.dirty_path, test_command, line_pattern)

@@ -12,30 +12,30 @@ class ChoiEtAl(VerificationStrategyInterface):
 
     def verify_linting(self, function):
         lint_errors = function.project.get_lint_errors()
-        does_linting_pass = len(lint_errors) == 0
+        number_linting_errors = len(lint_errors)
 
-        if not does_linting_pass:
-            get_logger().info("Linting does not pass, attempting to fix")
+        if number_linting_errors > 0:
+            get_logger().info("Linting does not pass, {} error(s), attempting to fix".format(number_linting_errors))
             function.refactor_with_lint_errors(lint_errors)
 
             lint_errors = function.project.get_lint_errors()
-            does_linting_pass = len(lint_errors) == 0
-            if not does_linting_pass:
-                raise NotImprovableException(function, "failed linting")
+            number_linting_errors = len(lint_errors)
+            if number_linting_errors > 0:
+                raise NotImprovableException(function, "failed linting: {} error(s)".format(number_linting_errors))
 
     def verify_tests(self, function):
         test_errors = function.project.get_test_errors()
-        do_tests_pass = len(test_errors) == 0
+        number_test_errors = len(test_errors)
 
-        if not do_tests_pass:
-            get_logger().info("Tests do not pass, attempting to fix")
+        if number_test_errors > 0:
+            get_logger().info("Tests do not pass, {} error(s), attempting to fix".format(number_test_errors))
             function.refactor_with_test_errors(test_errors)
             self.verify_linting(function)
 
             test_errors = function.project.get_test_errors()
-            do_tests_pass = len(test_errors) == 0
-            if not do_tests_pass:
-                raise NotImprovableException(function, "failed tests")
+            number_test_errors = len(test_errors) 
+            if number_test_errors > 0:
+                raise NotImprovableException(function, "failed tests: {} error(s)".format(number_test_errors))
 
     def verify_improvement(self, function):
         is_improved = function.new_cc < function.old_cc
