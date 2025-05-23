@@ -88,6 +88,10 @@ class OpenAIWrapper(LLMWrapperInterface):
             except RateLimitError as e:
                 delay = base_delay + randint(1, 5)
                 get_logger().error("Rate limit error: " + e.message)
+                get_logger().error("Context length: " + self.__get_context_length(context))
+                if base_delay > 60:
+                    get_logger().fatal("Failed to get answer from OpenAI.")
+                    raise Exception("Failed to get answer from OpenAI.")
                 get_logger().info("Waiting " + str(delay) + "s before next attempt")
                 time.sleep(delay)
                 base_delay +=5

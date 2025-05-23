@@ -314,6 +314,9 @@ def __parse_tap_output(test_output: str, file_line_pattern)-> list[TestError]:
             if regex_match is not None:
                 test_file = regex_match.group(1)
                 test_line = regex_match.group(2)
+            else:
+                print('failed to read test_file')
+                print(line.yaml_block['stack'])
 
             error: TestError = {
                 'expectation': line.description,
@@ -345,7 +348,6 @@ def get_tap_errors(dirty_path: str, test_command: str, line_pattern: str) -> lis
         with open(output_path, 'r') as output_file:
             test_output = output_file.read()
 
-        
         errors = __parse_tap_output(test_output, line_pattern)
 
         if os.path.exists(output_path):
