@@ -32,7 +32,7 @@ class Underscore(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx qunit test/'
-        line_pattern = r' *at Object.<anonymous> \((\S+underscore\D+):(\d+):\d+\)'
+        line_pattern = r'at (\S+underscore\D+):(\d+):\d+'
         errors = get_tap_errors(self.dirty_path, test_command, line_pattern)
 
         return errors
