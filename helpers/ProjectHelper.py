@@ -136,6 +136,31 @@ def get_mocha_errors(dirty_path: str, test_command: str, line_pattern: str) -> l
         if os.path.exists(mocha_json_output_path):
             os.remove(mocha_json_output_path) 
         return errors
+    
+def get_mocha_errors_from_stdout(dirty_path: str, test_command: str, line_pattern: str) -> list[TestError]:
+    try:
+        mocha_json_name = 'mocha-output.json'
+        output_options = ' --reporter json > ' + mocha_json_name
+        test_command += output_options
+        
+        mocha_json_output_path = dirty_path + '/' + mocha_json_name
+        
+        subprocess.run(['cd ' + dirty_path + ' && ' + test_command],
+                        shell=True, capture_output=True, text=True, check=True, timeout=30)
+        
+        if os.path.exists(mocha_json_output_path):
+            os.remove(mocha_json_output_path) 
+        return []
+
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        with open(mocha_json_output_path, 'r') as mocha_json_file:
+            mocha_json_output = mocha_json_file.read()
+
+        errors = __get_mocha_errors_from_json_output(mocha_json_output, line_pattern)
+
+        if os.path.exists(mocha_json_output_path):
+            os.remove(mocha_json_output_path) 
+        return errors    
 
 
 def __get_jest_errors_from_json_output(jest_json_output: str, line_pattern: str) -> list[TestError]:
