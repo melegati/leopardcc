@@ -269,9 +269,43 @@ def get_vitest_errors(dirty_path: str, test_command: str, line_pattern: str) -> 
             os.remove(vitest_json_output_path) 
         return errors   
     
+# function needed because of a bug in the output of tap that breaks the YAML parsing    
+def read_fixed_tap_file(test_output):
+    inside_yaml = False
+    inside_braces = False
+    output_lines = []
+
+    for line in test_output.splitlines():
+        stripped_line = line.strip()
+
+        if stripped_line == "---":
+            inside_yaml = True
+            output_lines.append(line)
+            continue
+        elif stripped_line == "..." and inside_yaml:
+            inside_yaml = False
+            output_lines.append(line)
+            continue
+
+        if inside_yaml:
+            if "{" in line:
+                inside_braces = True
+            if "}" in line:
+                inside_braces = False
+                line = '   ' + line
+
+            if inside_braces and not stripped_line.endswith("{"):
+                output_lines.append('  ' + line)
+            else:
+                output_lines.append(line)
+        else:
+            output_lines.append(line)
+
+    return '\n'.join(output_lines)
+
 def __parse_tap_output(test_output: str, file_line_pattern)-> list[TestError]:
     tap_parser = parser.Parser()
-    tap_file = tap_parser.parse_text(test_output)
+    tap_file = tap_parser.parse_text(read_fixed_tap_file(test_output))
     
     errors: list[TestError] = []
     for line in tap_file:
@@ -283,7 +317,7 @@ def __parse_tap_output(test_output: str, file_line_pattern)-> list[TestError]:
 
             error: TestError = {
                 'expectation': line.description,
-                'message_stack': line.yaml_block['message'],
+                'message_stack': line.yaml_block['stack'],
                 'test_file': test_file,
                 'target_line': int(test_line)
             }

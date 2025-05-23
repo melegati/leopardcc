@@ -32,7 +32,7 @@ class Fastify(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx borp --reporter=tap'
-        line_pattern = r' *at Object.<anonymous> \((\S+underscore\D+):(\d+):\d+\)'
+        line_pattern = r'TestContext.<anonymous> \((\S+underscore\D+):(\d+):\d+\)'
         errors = get_tap_errors(self.dirty_path, test_command, line_pattern)
 
         return errors
