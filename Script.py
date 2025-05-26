@@ -5,6 +5,7 @@ from projects.Expressjs import Expressjs
 from projects.Ramda import Ramda
 from projects.Underscore import Underscore
 from projects.Svelte import Svelte
+from projects.WS import WS
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
@@ -99,7 +100,7 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     return entry
 
 
-def main(project: ProjectInterface = Svelte(),
+def main(project: ProjectInterface = WS(),
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
          model: str = "gpt-4o-mini") -> None:

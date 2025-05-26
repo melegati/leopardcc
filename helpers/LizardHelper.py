@@ -1,4 +1,5 @@
 import lizard  # type: ignore
+import re
 from statistics import mean
 from functools import reduce
 import operator
@@ -33,9 +34,26 @@ def get_functions_sorted_by_complexity(functions: list[LizardResult]) -> list[Li
         functions, key=lambda fun: fun.cyclomatic_complexity, reverse=True)
     return result
 
+def add_function_keyword(code):
+    # This regex matches method definitions inside classes
+    method_pattern = re.compile(r'^\s*(\w+)\s*\((.*?)\)\s*\{', re.MULTILINE)
+
+    def replacer(match):
+        method_name = match.group(1)
+        args = match.group(2)
+        return f'function {method_name}({args})' + ' {'
+
+    # Replace each method definition with "function <name>(<args>) {"
+    updated_code = method_pattern.sub(replacer, code)
+    return updated_code
+
 def compute_cc_from_code(code: str) -> int:
     analysis = lizard.analyze_file.analyze_source_code("Test.js", code)
     functions = analysis.function_list
+    if len(functions) == 0:
+        print("failed to calculate CC, trying to add function in front of the code")
+        analysis = lizard.analyze_file.analyze_source_code("Test.js", add_function_keyword(code))
+        functions = analysis.function_list
     complexities = list(fun.cyclomatic_complexity for fun in functions)
     complexities_sorted = sorted(complexities, reverse=True)
 
