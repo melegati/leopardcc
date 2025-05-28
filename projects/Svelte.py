@@ -15,7 +15,7 @@ class Svelte(ProjectInterface):
 
     @property
     def code_dir(self):
-        return '/packages'
+        return '/packages/svelte/src'
 
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix
