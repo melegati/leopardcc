@@ -8,6 +8,7 @@ from projects.Svelte import Svelte
 from projects.WS import WS
 from projects.Fastify import Fastify
 from projects.Joi import Joi
+from projects.Markdownit import Markdownit
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
@@ -102,7 +103,7 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     return entry
 
 
-def main(project: ProjectInterface = Joi(),
+def main(project: ProjectInterface = Markdownit(),
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
          model: str = "gpt-4o-mini") -> None:
