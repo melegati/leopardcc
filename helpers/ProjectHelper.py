@@ -15,7 +15,7 @@ def install_npm_packages(project_copy_path: str, package_manager_command: str='n
     if dirpath.exists() and dirpath.is_dir():
         shutil.rmtree(dirpath)
     subprocess.run(['cd ' + project_copy_path +
-                    ' && ' + package_manager_command + ' install'],
+                    ' && ' + package_manager_command + ' ci'],
                     shell=True, capture_output=True, text=True, check=True)
 
 
