@@ -27,7 +27,9 @@ import os
 from interfaces.TimeSeriesEntry import TimeEntry, Result
 from git import Repo
 import traceback
-
+import argparse
+import importlib.util
+import re
 
 def prepare_log_dir(project_name: str) -> str:
     timestamp = filename = datetime.now(timezone.utc).strftime(
@@ -103,10 +105,10 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     return entry
 
 
-def main(project: ProjectInterface = Markdownit(),
-         prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
+def main(prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
-         model: str = "gpt-4o-mini") -> None:
+         model: str = "gpt-4o-mini",
+         project: ProjectInterface = Markdownit()) -> None:
 
     reset_logger()
     log_dir = prepare_log_dir(project.name)
@@ -194,5 +196,24 @@ def main(project: ProjectInterface = Markdownit(),
             
 
 
+def read_args():
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--project", required=True, type=str)
+    parser.add_argument("--project-folder", type=str, default="projects")
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    main()
+    args = read_args()
+
+    path = os.path.join(args.project_folder, args.project if args.project.endswith(".py") else f"{args.project}.py")
+
+    spec = importlib.util.spec_from_file_location(args.project, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    DClass = getattr(module, re.sub("-", "_", args.project))
+
+    main(project=DClass())
