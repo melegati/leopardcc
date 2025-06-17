@@ -214,6 +214,6 @@ if __name__ == "__main__":
     spec = importlib.util.spec_from_file_location(args.project, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    DClass = getattr(module, re.sub("-", "_", args.project))
+    DClass = getattr(module, re.sub("-", "_", argsproject[:-3] if filename.endswith(".py") else args.project))
 
     main(project=DClass())
