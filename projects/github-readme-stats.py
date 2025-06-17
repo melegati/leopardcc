@@ -7,7 +7,7 @@ from helpers.ProjectHelper import (
 )
 
 
-class Dayjs(ProjectInterface):
+class github_readme_stats(ProjectInterface):
     @property
     def path(self):
         return 'repos/github-readme-stats'
