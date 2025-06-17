@@ -26,7 +26,7 @@ class Autoprefixer(ProjectInterface):
         return fixed_code
 
     def get_lint_errors(self):
-        lint_command = 'npm run test:lint'
+        lint_command = 'npx eslint . bin/*'
         errors = get_eslint_errors(self.dirty_path, lint_command)
 
         return errors

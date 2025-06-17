@@ -26,13 +26,13 @@ class Inferno(ProjectInterface):
         return fixed_code
 
     def get_lint_errors(self):
-        lint_command = 'npm run lint'
+        lint_command = 'npx eslint packages/*'
         errors = get_eslint_errors(self.dirty_path, lint_command)
 
         return errors
 
     def get_test_errors(self):
-        test_command = 'npm run test'
+        test_command = 'npx cross-env NODE_ENV=test jest --config ./jest.config.js --no-watchman'
         line_pattern = r' *at Object.<anonymous> \(\S+dayjs\D+:(\d+):\d+\)'
 
         errors = get_jest_errors(self.dirty_path, test_command, line_pattern)
