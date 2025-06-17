@@ -110,10 +110,6 @@ def main(prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          model: str = "gpt-4o-mini",
          project: ProjectInterface = Markdownit()) -> None:
 
-
-    print(project)
-    quit()
-
     reset_logger()
     log_dir = prepare_log_dir(project.name)
     add_log_file_handler(log_dir + "/log.txt")
