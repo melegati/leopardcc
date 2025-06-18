@@ -41,7 +41,7 @@ class ProjectInterface(ABC):
             shutil.rmtree(destination_path)
 
         path_of_copy = shutil.copytree(
-            self.path, destination_path, dirs_exist_ok=True)
+            self.path, destination_path, dirs_exist_ok=True, symlinks=True)
 
         self.after_copy_hook(path_suffix)
 
