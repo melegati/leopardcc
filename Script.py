@@ -1,14 +1,5 @@
 from datetime import datetime, timezone
 from llm_wrappers.OpenAIWrapper import OpenAIWrapper
-from projects.Dayjs import Dayjs
-from projects.Expressjs import Expressjs
-from projects.Ramda import Ramda
-from projects.Underscore import Underscore
-from projects.Svelte import Svelte
-from projects.WS import WS
-from projects.Fastify import Fastify
-from projects.Joi import Joi
-from projects.Markdownit import Markdownit
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
@@ -105,10 +96,10 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     return entry
 
 
-def main(prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
+def main(project: ProjectInterface,
+         prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
-         model: str = "gpt-4o-mini",
-         project: ProjectInterface = Markdownit()) -> None:
+         model: str = "gpt-4o-mini") -> None:
 
     reset_logger()
     log_dir = prepare_log_dir(project.name)

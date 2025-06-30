@@ -11,11 +11,14 @@ from tap import parser #type: ignore
 
 def install_npm_packages(project_copy_path: str, package_manager_command: str='npm'):
     node_modules_dir = '/node_modules'
-    dirpath = Path(project_copy_path) / node_modules_dir
+    project_path = Path(project_copy_path) 
+    dirpath = project_path / node_modules_dir
     if dirpath.exists() and dirpath.is_dir():
         shutil.rmtree(dirpath)
+    package_lock_file = project_path / '/package-lock.json'
+    install_command = 'ci' if package_lock_file.exists() else 'install'
     subprocess.run(['cd ' + project_copy_path +
-                    ' && ' + package_manager_command + ' ci'],
+                    ' && ' + package_manager_command + ' ' + install_command],
                     shell=True, capture_output=True, text=True, check=True)
 
 
@@ -43,7 +46,7 @@ def __extract_eslint_error(message: dict[str, str], file_path: str) -> LintError
     target_line = int(message['line'])
     with open(file_path, 'r') as code_file:
         content = code_file.readlines()
-    erroneous_code = content[target_line - 1]
+    erroneous_code = content[target_line - 1] if target_line - 1 < len(content) else ''
 
     error: LintError = {
         'rule_id': message['ruleId'],
