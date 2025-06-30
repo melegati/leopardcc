@@ -125,7 +125,7 @@ def get_mocha_errors(dirty_path: str, test_command: str, line_pattern: str) -> l
         mocha_json_output_path = dirty_path + '/' + mocha_json_name
         
         subprocess.run(['cd ' + dirty_path + ' && ' + test_command],
-                        shell=True, capture_output=True, text=True, check=True, timeout=30)
+                        shell=True, capture_output=True, text=True, check=True, timeout=120)
         
         if os.path.exists(mocha_json_output_path):
             os.remove(mocha_json_output_path) 
@@ -150,7 +150,7 @@ def get_mocha_errors_from_stdout(dirty_path: str, test_command: str, line_patter
         mocha_json_output_path = dirty_path + '/' + mocha_json_name
         
         subprocess.run(['cd ' + dirty_path + ' && ' + test_command],
-                        shell=True, capture_output=True, text=True, check=True, timeout=30)
+                        shell=True, capture_output=True, text=True, check=True, timeout=120)
         
         if os.path.exists(mocha_json_output_path):
             os.remove(mocha_json_output_path) 

@@ -14,7 +14,7 @@ class Async(ProjectInterface):
 
     @property
     def code_dir(self):
-        return '/'
+        return '/lib'
 
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix
@@ -32,7 +32,7 @@ class Async(ProjectInterface):
         return errors
 
     def get_test_errors(self):
-        test_command = 'npx mocha'
+        test_command = 'npx mocha --timeout 2000'
         line_pattern = r' *at Object.<anonymous> \(\S+dayjs\D+:(\d+):\d+\)'
 
         errors = get_mocha_errors(self.dirty_path, test_command, line_pattern)
