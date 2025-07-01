@@ -99,6 +99,10 @@ def get_eslint_errors(dirty_path: str, lint_command: str) -> list[LintError]:
 
 
 def __get_mocha_errors_from_json_output(stdout: bytes | str, line_pattern: str) -> list[TestError]:
+    
+    if not stdout.startswith('{'):
+        stdout = stdout[stdout.find('{'):]
+
     test_info = json.loads(stdout)
     failures = test_info['failures']
 
@@ -106,7 +110,7 @@ def __get_mocha_errors_from_json_output(stdout: bytes | str, line_pattern: str) 
     for failure in failures:
         error: TestError = {'expectation': failure['fullTitle'],
                             'message_stack': failure['err']['stack'],
-                            'test_file': failure['file'],
+                            'test_file': failure['file'] if 'file' in failure else None,
                             'target_line': None}
         line_match = re.search(line_pattern, failure['err']['stack'])
         if line_match is not None:

@@ -153,3 +153,16 @@ class Function:
     def apply_changes_to_target(self) -> None:
         __patch_code__(self.target_path,
                        old_code=self.history[0], new_code=self.history[-1])
+        
+    def contains_lines(self, start_line: int, end_line: int) -> bool:
+        if start_line >= self.lizard_result.start_line and start_line <= self.lizard_result.end_line:
+            if end_line >= self.lizard_result.start_line and end_line <= self.lizard_result.end_line:
+                return True
+            else:
+                raise("Inconsistent lines of overlapping functions.")
+        if self.lizard_result.start_line >= start_line and self.lizard_result.start_line <= end_line:
+            if self.lizard_result.end_line >= start_line and self.lizard_result.end_line <= end_line:
+                return True
+            else:
+                raise("Inconsistent lines of overlapping functions.")
+        return False

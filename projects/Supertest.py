@@ -33,7 +33,7 @@ class Supertest(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx run mocha'
-        line_pattern = r' *at Object.<anonymous> \(\S+dayjs\D+:(\d+):\d+\)'
+        line_pattern = r' *at Context.<anonymous> \(\D+:(\d+):\d+\)'
 
         errors = get_mocha_errors(self.dirty_path, test_command, line_pattern)
         return errors

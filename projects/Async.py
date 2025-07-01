@@ -3,7 +3,7 @@ from interfaces.TestError import TestError
 from interfaces.LintError import LintError
 from helpers.ProjectHelper import (
     install_npm_packages, fix_eslint_issues,
-    get_eslint_errors, get_mocha_errors,
+    get_eslint_errors, get_mocha_errors_from_stdout,
 )
 
 
@@ -33,7 +33,7 @@ class Async(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx mocha --timeout 2000'
-        line_pattern = r' *at Object.<anonymous> \(\S+dayjs\D+:(\d+):\d+\)'
+        line_pattern = r' *at Context.<anonymous> \(\D+:(\d+):\d+\)'
 
-        errors = get_mocha_errors(self.dirty_path, test_command, line_pattern)
+        errors = get_mocha_errors_from_stdout(self.dirty_path, test_command, line_pattern)
         return errors

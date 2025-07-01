@@ -3,7 +3,7 @@ from interfaces.TestError import TestError
 from interfaces.LintError import LintError
 from helpers.ProjectHelper import (
     install_npm_packages, fix_eslint_issues,
-    get_eslint_errors, get_jest_errors, 
+    get_eslint_errors, get_mocha_errors_from_stdout, 
 )
 
 
@@ -32,8 +32,8 @@ class Superagent(ProjectInterface):
         return errors
 
     def get_test_errors(self):
-        test_command = 'npx mocha --require should --exit '
-        line_pattern = r' *at Object.<anonymous> \(\S+superagent\D+:(\d+):\d+\)'
+        test_command = 'npx mocha --require should --exit'
+        line_pattern = r' *at Context.<anonymous> \(\D+:(\d+):\d+\)'
 
-        errors = get_jest_errors(self.dirty_path, test_command, line_pattern)
+        errors = get_mocha_errors_from_stdout(self.dirty_path, test_command, line_pattern)
         return errors

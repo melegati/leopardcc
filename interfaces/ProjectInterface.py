@@ -82,7 +82,7 @@ class ProjectInterface(ABC):
     def get_test_case(self, error: TestError) -> None | str:
         """Returns the test code for a given failing test case."""
 
-        if error['target_line'] is None:
+        if error['target_line'] is None or error['test_file'] is None:
             return None
 
         with open(error['test_file'], 'r') as f:

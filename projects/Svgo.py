@@ -33,7 +33,7 @@ class Svgo(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx cross-env NODE_OPTIONS=--experimental-vm-modules jest'
-        line_pattern = r' *at Object.<anonymous> \(\S+dayjs\D+:(\d+):\d+\)'
+        line_pattern = r' *at Object.<anonymous> \(\S+svgo\D+:(\d+):\d+\)'
 
         errors = get_jest_errors(self.dirty_path, test_command, line_pattern)
         return errors

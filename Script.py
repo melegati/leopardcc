@@ -9,6 +9,7 @@ from helpers.LizardHelper import compute_cyclomatic_complexity, get_functions_so
 from helpers.GitHelper import save_git_diff_patch
 from Refactorer import improve_function
 from interfaces.Function import Function
+from interfaces.LizardResult import LizardResult
 from interfaces.NotImprovableException import NotImprovableException
 from interfaces.LlmWrapperInterface import LLMWrapperInterface
 from interfaces.ProjectInterface import ProjectInterface
@@ -95,6 +96,17 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
     }
     return entry
 
+def has_overlapping_function_already_improved(improved_functions: list[Function], lizard_result: LizardResult) -> bool:
+
+    if len(improved_functions) == 0: return False
+
+    improved_functions_on_the_same_file = list(filter(lambda f: f.lizard_result.filename == lizard_result.filename, improved_functions))
+
+    if len(improved_functions_on_the_same_file) > 0:
+        for prev_improved_function in improved_functions_on_the_same_file:
+            if prev_improved_function.contains_lines(lizard_result.start_line, lizard_result.end_line):
+                return True
+    return False
 
 def main(project: ProjectInterface,
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
@@ -122,7 +134,18 @@ def main(project: ProjectInterface,
     
     consecutive_exception_count = 0
     was_keyboard_interrupt_raised = False
-    for idx, lizard_result in enumerate(most_complex[:20]):
+    idx = 0
+    for lizard_result in most_complex:
+
+        if idx >= 20:
+            break
+
+        if has_overlapping_function_already_improved(improved_functions, lizard_result):
+            get_logger().info("Ignoring function " + lizard_result.long_name +
+                                " from file " + function.relative_path +
+                                " because overlapping function has already been improved.")
+            continue
+
         idx = idx + 1
         result: Result | None = None
         try:
