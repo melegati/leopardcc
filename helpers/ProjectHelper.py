@@ -317,19 +317,27 @@ def __parse_tap_output(test_output: str, file_line_pattern)-> list[TestError]:
     errors: list[TestError] = []
     for line in tap_file:
         if line.category == 'test' and not line.ok:
-            regex_match = re.search(file_line_pattern, line.yaml_block['stack'])
-            if regex_match is not None:
-                test_file = regex_match.group(1)
-                test_line = regex_match.group(2)
-            else:
-                print('failed to read test_file')
-                print(line.yaml_block['stack'])
+            stack = line.yaml_block['stack'] if hasattr(line.yaml_block, '__getitem__') and 'stack' in line.yaml_block else None
+            
+            test_file = None
+            test_line = None
+            if stack:
+                regex_match = re.search(file_line_pattern, line.yaml_block['stack'])
+                if regex_match is not None:
+                    test_file = regex_match.group(1)
+                    test_line = regex_match.group(2)
+                    if test_file.startswith('file://'):
+                        test_file = test_file[7:]
+                else:
+                    print('failed to read test_file')
+                    print(stack)
+                
 
             error: TestError = {
                 'expectation': line.description,
-                'message_stack': line.yaml_block['stack'],
+                'message_stack': stack,
                 'test_file': test_file,
-                'target_line': int(test_line)
+                'target_line': int(test_line) if test_line is not None else 0
             }
             errors.append(error)
 
@@ -342,7 +350,7 @@ def get_tap_errors(dirty_path: str, test_command: str, line_pattern: str) -> lis
         
         output_path = dirty_path + '/' + output_file_name
         
-        result = subprocess.run(test_command, cwd=dirty_path, shell=True, check=True, timeout=120)
+        result = subprocess.run(test_command, cwd=dirty_path, shell=True, check=True, timeout=120, stderr=subprocess.PIPE)
         if result.returncode != 0:
             pass
             # raise subprocess.CalledProcessError(result.returncode, test_command)
@@ -356,6 +364,21 @@ def get_tap_errors(dirty_path: str, test_command: str, line_pattern: str) -> lis
             test_output = output_file.read()
 
         errors = __parse_tap_output(test_output, line_pattern)
+
+        if len(errors) == 0 and e.stderr is not None:
+            lines = e.stderr.splitlines()
+            first_line = lines[0].decode().rsplit(':', 1)
+            test_file = first_line[0]
+            if test_file.startswith('file://'):
+                test_file = test_file[7:]
+            test_line = first_line[1]
+            error: TestError = {
+                'expectation': None,
+                'message_stack': b'\n'.join(lines[1:]),
+                'test_file': test_file,
+                'target_line': int(test_line) if test_line is not None else 0
+            }
+            errors.append(error)
 
         if os.path.exists(output_path):
             os.remove(output_path) 
