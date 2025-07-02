@@ -123,7 +123,8 @@ class Function:
         top_errors = errors[:10]
         test_cases = __get_test_cases_from_errors__(top_errors, self.project)
 
-        prompt = self.strategy.test_explanation_prompt(errors, test_cases)
+        #Limiting also the errors sent to top
+        prompt = self.strategy.test_explanation_prompt(top_errors, test_cases)
         explanation = self.llm_wrapper.send_message(prompt)
 
         prompt = self.strategy.test_fix_prompt()
