@@ -32,7 +32,7 @@ class Shelljs(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx ava --tap'
-        line_pattern = r'TestContext.<anonymous> \((\S+underscore\D+):(\d+):\d+\)'
+        line_pattern = r'TestContext.<anonymous> \((\S+shelljs\D+):(\d+):\d+\)'
         errors = get_tap_errors(self.dirty_path, test_command, line_pattern)
 
         return errors

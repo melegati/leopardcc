@@ -14,7 +14,7 @@ class Inferno(ProjectInterface):
 
     @property
     def code_dir(self):
-        return '/'
+        return '/packages'
 
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix
@@ -33,7 +33,7 @@ class Inferno(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx cross-env NODE_ENV=test jest --config ./jest.config.js --no-watchman'
-        line_pattern = r' *at Object.<anonymous> \(\S+dayjs\D+:(\d+):\d+\)'
+        line_pattern = r' *at Object.<anonymous> \(\S+inferno\D+:(\d+):\d+\)'
 
         errors = get_jest_errors(self.dirty_path, test_command, line_pattern)
         return errors
