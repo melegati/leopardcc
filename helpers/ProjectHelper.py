@@ -317,12 +317,17 @@ def __parse_tap_output(test_output: str, file_line_pattern)-> list[TestError]:
     errors: list[TestError] = []
     for line in tap_file:
         if line.category == 'test' and not line.ok:
-            stack = line.yaml_block['stack'] if hasattr(line.yaml_block, '__getitem__') and 'stack' in line.yaml_block else None
+            stack = None
+            if hasattr(line.yaml_block, '__getitem__'):
+                if 'stack' in line.yaml_block:
+                    stack = line.yaml_block['stack']
+                elif 'at' in line.yaml_block:
+                    stack = line.yaml_block['at']
             
             test_file = None
             test_line = None
             if stack:
-                regex_match = re.search(file_line_pattern, line.yaml_block['stack'])
+                regex_match = re.search(file_line_pattern, stack)
                 if regex_match is not None:
                     test_file = regex_match.group(1)
                     test_line = regex_match.group(2)

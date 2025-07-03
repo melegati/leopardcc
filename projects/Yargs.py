@@ -26,14 +26,14 @@ class Yargs(ProjectInterface):
         return fixed_code
 
     def get_lint_errors(self):
-        lint_command = 'npx eslint .'
+        lint_command = 'npx eslint . --ext mjs --ext js'
         errors = get_eslint_errors(self.dirty_path, lint_command)
 
         return errors
 
     def get_test_errors(self):
-        test_command = 'npx mocha --enable-source-maps ./test/*.mjs --require ./test/before.mjs' 
-        line_pattern = r' *at Context.<anonymous> \(\D+:(\d+):\d+\)'
+        test_command = 'npx mocha --enable-source-maps ./test/*.mjs --require ./test/before.mjs --exit' 
+        line_pattern = r'\(\D+:(\d+):\d+\)'
 
         errors = get_mocha_errors(self.dirty_path, test_command, line_pattern)
         return errors

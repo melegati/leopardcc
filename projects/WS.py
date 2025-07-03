@@ -33,7 +33,7 @@ class WS(ProjectInterface):
 
     def get_test_errors(self):
         test_command = 'npx mocha "test/*.test.js"'
-        line_pattern = r' *at Context.<anonymous> \S+ws\D+:(\d+):\d+\)\n'
+        line_pattern = r' *at Context.<anonymous> \(\S+ws\D+:(\d+):\d+\)\n'
         errors = get_mocha_errors_from_stdout(self.dirty_path, test_command, line_pattern)
 
         return errors
