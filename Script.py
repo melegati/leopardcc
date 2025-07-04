@@ -216,7 +216,7 @@ def read_args():
 
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
-    parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe'], default='ChoiEtAl')
+    parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe', 'Melegati'], default='ChoiEtAl')
 
     return parser.parse_args()
 
