@@ -216,18 +216,23 @@ def read_args():
 
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
+    parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe'], default='ChoiEtAl')
 
     return parser.parse_args()
 
 
+def get_class(folder, className):
+    path = os.path.join(folder, f"{className}.py")
+    spec = importlib.util.spec_from_file_location(className, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    ProjectClass = getattr(module, re.sub("-", "_", className[:-3] if className.endswith(".py") else className))
+    return ProjectClass
+
 if __name__ == "__main__":
     args = read_args()
 
-    path = os.path.join(args.project_folder, args.project if args.project.endswith(".py") else f"{args.project}.py")
+    projectClass = get_class(args.project_folder, args.project)
+    promptStrategyClass = get_class('prompt_strategies', args.prompt_strategy)
 
-    spec = importlib.util.spec_from_file_location(args.project, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    DClass = getattr(module, re.sub("-", "_", args.project[:-3] if args.project.endswith(".py") else args.project))
-
-    main(project=DClass())
+    main(project=projectClass(), prompt_strategy=promptStrategyClass())
