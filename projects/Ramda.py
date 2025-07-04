@@ -15,6 +15,10 @@ class Ramda(ProjectInterface):
     @property
     def code_dir(self):
         return '/source'
+    
+    # @property
+    # def linter_config_file(self):
+    #     return ".eslintrc"
 
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix

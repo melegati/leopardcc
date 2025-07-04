@@ -4,11 +4,13 @@ import shutil
 from .LintError import LintError
 from .TestError import TestError
 import re
+from pathlib import Path
 
 
 class ProjectInterface(ABC):
     __dirty_path: str | None = None
     __target_path: str | None = None
+    # __linter_config: str | None = None
 
     @property
     @abstractmethod
@@ -29,6 +31,12 @@ class ProjectInterface(ABC):
     def code_dir(self) -> str:
         """The directory inside the project which holds the source code (e. g. 'src', 'lib', ...)"""
         pass
+
+    # @property
+    # @abstractmethod
+    # def linter_config_file(self) -> str:
+    #     """The path inside the project to the linter config file."""
+    #     pass
 
     def after_copy_hook(self, path_suffix: str) -> None:
         """Optional code to be executed to prepare running tests (e. g. installing 3rd party libraries)"""
@@ -117,3 +125,16 @@ class ProjectInterface(ABC):
             test_case += line.removeprefix(white_spaces_count * ' ').rstrip()
 
         return test_case
+    
+    # @property
+    # def linter_config(self) -> str:
+    #     if self.__linter_config is None:
+    #         if self.linter_config_file is None:
+    #             self.__linter_config= None
+    #         else: 
+    #             with open(Path(self.path) / self.linter_config_file, 'r') as f:
+    #                 self.__linter_config = f.read()
+
+    #     return self.__linter_config
+                
+        
