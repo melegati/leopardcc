@@ -209,6 +209,7 @@ pip-selfcheck.json
 .ionide
 
 openai-key.txt
+google-key.txt
 
 ### Projects' repositories ###
 repos/

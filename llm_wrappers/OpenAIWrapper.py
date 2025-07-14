@@ -8,21 +8,56 @@ import operator
 import time
 from util.Logger import get_logger
 from random import randint
+from abc import ABC, abstractmethod
+from google import genai
 
+
+class TokenCounter(ABC):
+
+    @abstractmethod
+    def count_tokens(self, message: str) -> int:
+        pass
+
+    def get_context_length(self, context: list[dict[str, str]]) -> int:
+        tokenized_messages = list([self.count_tokens(msg["content"])] for msg in context)
+        tokens_per_message = list(len(tokens) for tokens in tokenized_messages)
+
+        context_length = reduce(operator.add, tokens_per_message)
+        return context_length
+    
+class TiktokenTokenCounter(TokenCounter):
+
+    def __init__(self, model):
+        self.tokenizer = tiktoken.encoding_for_model(model)
+
+    def count_tokens(self, message: str) -> int:
+        return len(self.tokenizer.encode(message))
+    
+class GoogleTokenCounter(TokenCounter):
+
+    def __init__(self, model, api_key):
+        self.client = genai.Client(api_key=api_key)
+        self.model = model
+    
+    def count_tokens(self, message: str) -> int:
+        return self.client.models.count_tokens(model=self.model, contents=message)
 
 class OpenAIWrapper(LLMWrapperInterface):
     @staticmethod
     def name():
         return "OpenAI wrapper"
     
-    def __init__(self, api_key: str, log_path: str, model: str = "gpt-4o-mini", max_context_length: int = 128000):
+    def __init__(self, api_key: str, log_path: str, token_counter: TokenCounter, model: str = "gpt-4o-mini", max_context_length: int = 128000, base_url: str = None):
         self.api_key = api_key
         self.__model = model
         self.log_path = log_path
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
-        self.client = OpenAI(api_key=self.api_key)
-        self.tokenizer = tiktoken.encoding_for_model(model)
+        if base_url is None:
+            self.client = OpenAI(api_key=self.api_key)
+        else:
+            self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.token_counter = token_counter
         self.__sent_tokens_count = 0
         self.__received_tokens_count = 0
     
@@ -41,18 +76,10 @@ class OpenAIWrapper(LLMWrapperInterface):
     def __add_message(self, role: str, content: str):
         self.messages.append({"role": role, "content": content})
 
-    def __get_context_length(self, context: list[dict[str, str]]) -> int:
-        tokenized_messages = list(self.tokenizer.encode(msg["content"])
-                                  for msg in context)
-        tokens_per_message = list(len(tokens) for tokens in tokenized_messages)
-
-        context_length = reduce(operator.add, tokens_per_message)
-        return context_length
-
     def __get_context(self, prompt: str) -> list:
         context = self.messages + [{"role": "user", "content": prompt}]
 
-        context_length = self.__get_context_length(context)
+        context_length = self.token_counter.get_context_length(context)
         if self.max_context_length > 0:
             while context_length > self.max_context_length and len(context) > 1:
                 # Remove oldest message until within length limit
@@ -96,14 +123,10 @@ class OpenAIWrapper(LLMWrapperInterface):
                 time.sleep(delay)
                 base_delay +=5
 
-
-        context_length = self.__get_context_length(context)
-        self.__sent_tokens_count += context_length
+        self.__sent_tokens_count += completion.usage.prompt_tokens
 
         response_content = str(completion.choices[0].message.content)
-        tokenized_response = self.tokenizer.encode(response_content)
-        response_tokens_count = len(tokenized_response)
-        self.__received_tokens_count += response_tokens_count
+        self.__received_tokens_count += completion.usage.completion_tokens
 
         self.__add_message("user", prompt)
         self.__add_message("assistant", response_content)

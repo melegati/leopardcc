@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from llm_wrappers.OpenAIWrapper import OpenAIWrapper
+from llm_wrappers.OpenAIWrapper import OpenAIWrapper, TiktokenTokenCounter, GoogleTokenCounter
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
@@ -40,10 +40,31 @@ def prepare_openai_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
     llm_wrapper = OpenAIWrapper(
         api_key=api_key,
         log_path=log_path,
+        token_counter=TiktokenTokenCounter(model),
         model=model)
 
     return llm_wrapper
 
+def prepare_google_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
+    with open('google-key.txt', 'r', encoding='utf-8') as key_file:
+        api_key = key_file.read()
+    
+    llm_wrapper = OpenAIWrapper(
+        api_key = api_key,
+        log_path = log_path,
+        token_counter=GoogleTokenCounter(model, api_key),
+        model = model,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+
+    return llm_wrapper
+
+def get_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
+    if model in ['gpt-4o-mini']:
+        return prepare_openai_wrapper(model, log_path)
+    elif model in ['gemini-2.0-flash-001']:
+        return prepare_google_wrapper(model, log_path)
+    raise "Unknown model."
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
                             idx: int, time_series: list[TimeEntry], result: Result,
@@ -151,7 +172,7 @@ def main(project: ProjectInterface,
         try:
             llm_wrapper_logpath = log_dir + \
                 "/conversations/" + project.name + "-" + str(idx) + ".json"
-            llm_wrapper: LLMWrapperInterface = prepare_openai_wrapper(model, llm_wrapper_logpath)
+            llm_wrapper: LLMWrapperInterface = get_model_wrapper(model, llm_wrapper_logpath)
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
             get_logger().info("Refactoring function #" + str(idx) + 
@@ -217,6 +238,7 @@ def read_args():
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
     parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe', 'Melegati'], default='ChoiEtAl')
+    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gemini-2.0-flash-001'], default='gpt-4o-mini')
 
     return parser.parse_args()
 
@@ -235,4 +257,4 @@ if __name__ == "__main__":
     projectClass = get_class(args.project_folder, args.project)
     promptStrategyClass = get_class('prompt_strategies', args.prompt_strategy)
 
-    main(project=projectClass(), prompt_strategy=promptStrategyClass())
+    main(project=projectClass(), prompt_strategy=promptStrategyClass(), model=args.model)
