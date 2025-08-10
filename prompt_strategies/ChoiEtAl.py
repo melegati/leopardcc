@@ -12,13 +12,13 @@ class ChoiEtAl(PromptStrategyInterface):
     
     def initial_prompt(self, code: str) -> str:
         prompt = """```javascript
-        {code}
-        ```
-        Refactor the provided javascript method to enhance its readability and maintainability.
-        You can assume that the given method is functionally correct. Ensure that you do not alter
-        the external behavior of the method, maintaining both syntactic and semantic correctness.
-        Provide the javascript method within a code block. Avoid using natural language explanations.
-        """.format(code=code)
+{code}
+```
+Refactor the provided javascript method to enhance its readability and maintainability.
+You can assume that the given method is functionally correct. Ensure that you do not alter
+the external behavior of the method, maintaining both syntactic and semantic correctness.
+Provide the javascript method within a code block. Avoid using natural language explanations.
+""".format(code=code)
 
         return prompt
 
@@ -28,19 +28,19 @@ class ChoiEtAl(PromptStrategyInterface):
         message_stack = '\n\n'.join(messages)
 
         prompt = """The refactored JavaScript method you provided does not pass the linting check.
-        The linting messages and the respective code look like:
-        ```
-        {message_stack}
-        ```
-        Explain why your code does not pass the linting check.
-        """.format(message_stack=message_stack)
+The linting messages and the respective code look like:
+```
+{message_stack}
+```
+Explain why your code does not pass the linting check.
+""".format(message_stack=message_stack)
 
         return prompt
 
     def linting_fix_prompt(self) -> str:
         prompt = """Fix your method by utilizing the linting messages, the erroneous code,
-        your explanation and the original method. Provide the javascript method within a code block.
-        Do not explain anything in natural language."""
+your explanation and the original method. Provide the javascript method within a code block.
+Do not explain anything in natural language."""
 
         return prompt
 
@@ -51,36 +51,36 @@ class ChoiEtAl(PromptStrategyInterface):
         test_cases_united = '\n\n'.join(test_cases)
 
         prompt = """The refactored JavaScript method you provided does not pass the test suite.
-        The error messages and the call stack look like:
-        ```
-        {message_stack}
-        ```
-        Failing test(s) looks like:
-        ```
-        {tests}
-        ```
-        Explain why your code does not pass the tests.""".format(message_stack=stack_united, tests=test_cases_united)
+The error messages and the call stack look like:
+```
+{message_stack}
+```
+Failing test(s) looks like:
+```
+{tests}
+```
+Explain why your code does not pass the tests.""".format(message_stack=stack_united, tests=test_cases_united)
 
         return prompt
 
     def test_fix_prompt(self) -> str:
         prompt = """Fix your method by utilizing the error message, the call stack, the failing test,
-        your explanation and the original method. Provide the javascript method within a code block.
-        Do not explain anything in natural language."""
+your explanation and the original method. Provide the javascript method within a code block.
+Do not explain anything in natural language."""
 
         return prompt
 
     def better_improvement_explanation_prompt(self) -> str:
         prompt = """The refactored Javascript method you provided lacks improvement in readability and maintainability.
-        Identify the section that can be modularized in the refactored method."""
+Identify the section that can be modularized in the refactored method."""
 
         return prompt
 
     def better_improvement_fix_prompt(self) -> str:
         prompt = """Please rectify the refactored Javascript method to enhance its readability and maintainability by
-        utilizing information about the section that can be modularized.
-        The method you provide should be syntactically identical to the original method.
-        Provide the full implementation of the improved Javascript method within a code block.
-        Avoid providing explanations in natural language."""
+utilizing information about the section that can be modularized.
+The method you provide should be syntactically identical to the original method.
+Provide the full implementation of the improved Javascript method within a code block.
+Avoid providing explanations in natural language."""
 
         return prompt

@@ -88,9 +88,9 @@ class Function:
 
     def __process_llm_code__(self, code: str) -> str:
         code_without_backticks = __remove_code_block_backticks__(code)
-        lint_fixed_code = self.project.run_lint_fix(code_without_backticks)
-        
-        return lint_fixed_code
+        # lint_fixed_code = self.project.run_lint_fix(code_without_backticks) 
+        # return lint_fixed_code
+        return code_without_backticks
 
     def __update_new_cc__(self) -> None:
         new_cc = compute_cc_from_code(self.current_code_in_dirty)

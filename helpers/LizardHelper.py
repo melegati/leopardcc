@@ -71,5 +71,6 @@ def extract_function_code(function: LizardResult) -> str:
         code = file.readlines()
     function_lines = code[function.start_line - 1:function.end_line]
     function_code = reduce(operator.add, function_lines)
-    code_without_leading_spaces = function_code.lstrip()
-    return code_without_leading_spaces
+    # code_without_leading_spaces = function_code.lstrip()
+    # return code_without_leading_spaces
+    return function_code
