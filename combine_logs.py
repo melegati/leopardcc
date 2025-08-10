@@ -35,7 +35,8 @@ def concatenate_csvs(root_dir):
                     continue
 
                 idx_prompt_strategy = header.index('prompt_strategy')
-                
+                idx_model = header.index('model')
+                idx_project = header.index('project')
 
                 # Set final header only once
                 if not header_written:
@@ -48,8 +49,12 @@ def concatenate_csvs(root_dir):
                 for row in reader:
                     if run_number is None:
                         technique = row[idx_prompt_strategy]
-                        run_counter[technique] += 1
-                        run_number = run_counter[technique]
+                        model = row[idx_model]
+                        project = row[idx_project]
+                        key = (technique, model, project)
+
+                        run_counter[key] += 1
+                        run_number = run_counter[key]
                     output_rows.append([technique, run_number] + row)
         else:
             print(f"Warning: No CSV file found in {subdir_path}")
