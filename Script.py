@@ -60,9 +60,9 @@ def prepare_google_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
     return llm_wrapper
 
 def get_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
-    if model in ['gpt-4o-mini']:
+    if model in ['gpt-4o-mini', 'gpt-4.1-mini', 'o4-mini']:
         return prepare_openai_wrapper(model, log_path)
-    elif model in ['gemini-2.0-flash-001']:
+    elif model in ['gemini-2.0-flash-001', 'gemini-2.5-flash']:
         return prepare_google_wrapper(model, log_path)
     raise "Unknown model."
 
@@ -238,7 +238,7 @@ def read_args():
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
     parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe', 'Melegati'], default='ChoiEtAl')
-    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gemini-2.0-flash-001'], default='gpt-4o-mini')
+    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'o4-mini', 'gemini-2.0-flash-001', 'gemini-2.5-flash'], default='gpt-4o-mini')
 
     return parser.parse_args()
 
