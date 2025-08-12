@@ -1,3 +1,4 @@
+import subprocess
 from interfaces.ProjectInterface import ProjectInterface
 from interfaces.TestError import TestError
 from interfaces.LintError import LintError
@@ -19,6 +20,8 @@ class Superagent(ProjectInterface):
     def after_copy_hook(self, path_suffix) -> None:
         project_copy_path = self.path + path_suffix
         install_npm_packages(project_copy_path)
+        subprocess.run(['cd ' + project_copy_path + ' && npm run build'],
+                    shell=True, capture_output=True, text=True, check=True)
 
     def run_lint_fix(self, code):
         fixed_code = fix_eslint_issues(code, self.dirty_path)
