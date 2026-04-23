@@ -8,7 +8,7 @@ class ChoiEtAl(PromptStrategyInterface):
 
     @property
     def name(self):
-        return "Choi et al."
+        return "ChoiEtAl"
     
     def initial_prompt(self, code: str) -> str:
         prompt = """```javascript

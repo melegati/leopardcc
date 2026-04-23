@@ -211,5 +211,10 @@ pip-selfcheck.json
 openai-key.txt
 google-key.txt
 
+.DS_Store
+
 ### Projects' repositories ###
 repos/
+experiments/*/logs/
+experiments/*/analysis_summary.csv
+experiments/*/completed_runs.csv

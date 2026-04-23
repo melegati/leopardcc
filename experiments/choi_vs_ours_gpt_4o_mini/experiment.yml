@@ -1,0 +1,33 @@
+prompt-strategy:
+- ChoiEtAl
+- Melegati
+model:
+- gpt-4o-mini
+iterations: 20
+project:
+- Async
+- Compromise
+- Dayjs
+- Expressjs
+- Fastify
+- GithubReadmeStats
+- Joi
+- Lintstaged
+- Nock
+- Ramda
+- Shelljs
+- Superagent
+- Supertest
+- Svgo
+- Winston
+- WS
+tests:
+- 
+  variable: new_prj_avg_cc
+  type: last_iteration
+  test: wilcoxon_signed_rank
+- 
+  variable: result
+  type: count
+  count_if: success
+  test: paired_t_test

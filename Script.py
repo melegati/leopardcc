@@ -23,10 +23,10 @@ import argparse
 import importlib.util
 import re
 
-def prepare_log_dir(project_name: str) -> str:
+def prepare_log_dir(project_name: str, base_log_dir: str = "logs/") -> str:
     timestamp = filename = datetime.now(timezone.utc).strftime(
         "%Y-%m-%d-%H-%M-%S")
-    log_dir = "logs/" + timestamp + "-" + project_name
+    log_dir = os.path.join(base_log_dir, timestamp + "-" + project_name)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -96,7 +96,7 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
 
     entry: TimeEntry = {
         'iteration': idx,
-        'project': project.name,
+        'project': type(project).__name__,
         'prompt_strategy': prompt_strategy.name,
         'verification_strategy': verification_strategy.name,
         'model': function.llm_wrapper.model,
@@ -132,10 +132,12 @@ def has_overlapping_function_already_improved(improved_functions: list[Function]
 def main(project: ProjectInterface,
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
-         model: str = "gpt-4o-mini") -> None:
+         model: str = "gpt-4o-mini",
+         base_log_dir: str = "logs/",
+         iterations: int = 20) -> None:
 
     reset_logger()
-    log_dir = prepare_log_dir(project.name)
+    log_dir = prepare_log_dir(project.name, base_log_dir)
     add_log_file_handler(log_dir + "/log.txt")
 
     get_logger().info("Refactoring project " + project.name)
@@ -158,7 +160,7 @@ def main(project: ProjectInterface,
     idx = 0
     for lizard_result in most_complex:
 
-        if idx >= 20:
+        if idx >= iterations:
             break
 
         if has_overlapping_function_already_improved(improved_functions, lizard_result):
@@ -239,6 +241,8 @@ def read_args():
     parser.add_argument("--project-folder", type=str, default="projects")
     parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe', 'Melegati'], default='ChoiEtAl')
     parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'o4-mini', 'gemini-2.0-flash-001', 'gemini-2.5-flash', 'gpt-5-mini'], default='gpt-4o-mini')
+    parser.add_argument("--base-log-dir", type=str, default="logs/")
+    parser.add_argument("--iterations", type=int, default=20)
 
     return parser.parse_args()
 
@@ -257,4 +261,8 @@ if __name__ == "__main__":
     projectClass = get_class(args.project_folder, args.project)
     promptStrategyClass = get_class('prompt_strategies', args.prompt_strategy)
 
-    main(project=projectClass(), prompt_strategy=promptStrategyClass(), model=args.model)
+    main(project=projectClass(), 
+         prompt_strategy=promptStrategyClass(), 
+         model=args.model,
+         base_log_dir=args.base_log_dir,
+         iterations=args.iterations)
