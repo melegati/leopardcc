@@ -5,8 +5,14 @@ from llm_wrappers.TransformersTokenCounter import TransformersTokenCounter
 class OllamaModelWrapper(OpenAIAPIWrapper):
 
     configured_models = { 'deepseek-r1:1.5b': { 
-                                    'max_context': 128000, 
-                                    'hf_tokenizer': "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"  }  
+                                'max_context': 128000, 
+                                'hf_tokenizer': "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"  },
+                          'gpt-oss:120b': {
+                                'max_context': 128000, 
+                                'hf_tokenizer': "openai/gpt-oss-120b"  },
+                          'qwen3.6:35b': {
+                                'max_context': 256000, 
+                                'hf_tokenizer': "Qwen/Qwen3.6-35B-A3B"  },      
                         }
     
     @staticmethod
