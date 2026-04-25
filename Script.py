@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
-from llm_wrappers.OpenAIWrapper import OpenAIWrapper, TiktokenTokenCounter, GoogleTokenCounter
+from llm_wrappers.GoogleModelWrapper import GoogleModelWrapper
+from llm_wrappers.GoogleTokenCounter import GoogleTokenCounter
+from llm_wrappers.OpenAIAPIWrapper import OpenAIAPIWrapper
+from llm_wrappers.OpenAIModelWrapper import OpenAIModelWrapper
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
 from prompt_strategies.Scheibe import Scheibe
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
@@ -32,38 +35,11 @@ def prepare_log_dir(project_name: str, base_log_dir: str = "logs/") -> str:
 
     return log_dir
 
-
-def prepare_openai_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
-    with open('openai-key.txt', "r", encoding="utf-8") as key_file:
-        api_key = key_file.read()
-
-    llm_wrapper = OpenAIWrapper(
-        api_key=api_key,
-        log_path=log_path,
-        token_counter=TiktokenTokenCounter(model),
-        model=model)
-
-    return llm_wrapper
-
-def prepare_google_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
-    with open('google-key.txt', 'r', encoding='utf-8') as key_file:
-        api_key = key_file.read()
-    
-    llm_wrapper = OpenAIWrapper(
-        api_key = api_key,
-        log_path = log_path,
-        token_counter=GoogleTokenCounter(model, api_key),
-        model = model,
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-    )
-
-    return llm_wrapper
-
 def get_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
     if model in ['gpt-4o-mini', 'gpt-4.1-mini', 'o4-mini', 'gpt-5-mini']:
-        return prepare_openai_wrapper(model, log_path)
+        return OpenAIModelWrapper(model, log_path)
     elif model in ['gemini-2.0-flash-001', 'gemini-2.5-flash']:
-        return prepare_google_wrapper(model, log_path)
+        return GoogleModelWrapper(model, log_path)
     raise "Unknown model."
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 

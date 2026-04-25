@@ -2,61 +2,30 @@ from interfaces.LlmWrapperInterface import LLMWrapperInterface
 import json
 from pathlib import Path
 from openai import OpenAI, RateLimitError
-import tiktoken
-from functools import reduce
-import operator
 import time
+from llm_wrappers.TokenCounter import TokenCounter
 from util.Logger import get_logger
 from random import randint
-from abc import ABC, abstractmethod
-from google import genai
 
 
-class TokenCounter(ABC):
-
-    @abstractmethod
-    def count_tokens(self, message: str) -> int:
-        pass
-
-    def get_context_length(self, context: list[dict[str, str]]) -> int:
-        tokenized_messages = list([self.count_tokens(msg["content"])] for msg in context)
-        tokens_per_message = list(len(tokens) for tokens in tokenized_messages)
-
-        context_length = reduce(operator.add, tokens_per_message)
-        return context_length
-    
-class TiktokenTokenCounter(TokenCounter):
-
-    def __init__(self, model):
-        self.tokenizer = tiktoken.encoding_for_model(model)
-
-    def count_tokens(self, message: str) -> int:
-        return len(self.tokenizer.encode(message))
-    
-class GoogleTokenCounter(TokenCounter):
-
-    def __init__(self, model, api_key):
-        self.client = genai.Client(api_key=api_key)
-        self.model = model
-    
-    def count_tokens(self, message: str) -> int:
-        return self.client.models.count_tokens(model=self.model, contents=message)
-
-class OpenAIWrapper(LLMWrapperInterface):
+class OpenAIAPIWrapper(LLMWrapperInterface):
     @staticmethod
     def name():
-        return "OpenAI wrapper"
+        return "OpenAI API wrapper"
     
-    def __init__(self, api_key: str, log_path: str, token_counter: TokenCounter, model: str = "gpt-4o-mini", max_context_length: int = 128000, base_url: str = None):
+    def __init__(self, 
+                 api_key: str, 
+                 log_path: str, 
+                 token_counter: TokenCounter, 
+                 model: str, 
+                 max_context_length: int = 128000, 
+                 base_url: str = None):
         self.api_key = api_key
         self.__model = model
         self.log_path = log_path
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
-        if base_url is None:
-            self.client = OpenAI(api_key=self.api_key)
-        else:
-            self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.client = OpenAI(api_key=self.api_key, base_url=base_url)
         self.token_counter = token_counter
         self.__sent_tokens_count = 0
         self.__received_tokens_count = 0
@@ -133,3 +102,5 @@ class OpenAIWrapper(LLMWrapperInterface):
         self.__save_history_to_json()
 
         return response_content
+
+
