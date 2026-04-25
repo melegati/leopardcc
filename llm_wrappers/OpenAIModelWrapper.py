@@ -14,8 +14,7 @@ class OpenAIModelWrapper(OpenAIAPIWrapper):
 
     def __init__(self,
                  model: str,
-                 log_path: str,
-                 base_url: str = None):
+                 log_path: str):
         with open('openai-key.txt', "r", encoding="utf-8") as key_file:
             api_key = key_file.read()
         super().__init__(
@@ -23,5 +22,4 @@ class OpenAIModelWrapper(OpenAIAPIWrapper):
             log_path=log_path,
             token_counter=TiktokenTokenCounter(model),
             model=model,
-            max_context_length=self.configured_models_max_context[model],
-            base_url=base_url)
+            max_context_length=self.configured_models_max_context[model])

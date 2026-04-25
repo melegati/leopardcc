@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from llm_wrappers.GoogleModelWrapper import GoogleModelWrapper
 from llm_wrappers.GoogleTokenCounter import GoogleTokenCounter
+from llm_wrappers.OllamaModelWrapper import OllamaModelWrapper
 from llm_wrappers.OpenAIAPIWrapper import OpenAIAPIWrapper
 from llm_wrappers.OpenAIModelWrapper import OpenAIModelWrapper
 from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
@@ -36,7 +37,7 @@ def prepare_log_dir(project_name: str, base_log_dir: str = "logs/") -> str:
     return log_dir
 
 def build_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
-    available_wrappers = [ OpenAIModelWrapper, GoogleModelWrapper ]
+    available_wrappers = [ OpenAIModelWrapper, GoogleModelWrapper, OllamaModelWrapper ]
     wrapper_for_model = next((wrapper for wrapper in available_wrappers if model in wrapper.get_configured_models()), None)
 
     if wrapper_for_model is None:
@@ -218,7 +219,7 @@ def read_args():
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
     parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe', 'Melegati'], default='ChoiEtAl')
-    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'o4-mini', 'gemini-2.0-flash-001', 'gemini-2.5-flash', 'gpt-5-mini'], default='gpt-4o-mini')
+    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'gemini-2.5-flash', 'gpt-5-mini', 'deepseek-r1:1.5b'], default='gpt-4o-mini')
     parser.add_argument("--base-log-dir", type=str, default="logs/")
     parser.add_argument("--iterations", type=int, default=20)
 

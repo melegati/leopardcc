@@ -12,9 +12,7 @@ class GoogleModelWrapper(OpenAIAPIWrapper):
 
     def __init__(self,
                  model: str,
-                log_path: str,
-                max_context_length: int = 128000,
-                base_url: str = None):
+                log_path: str):
         with open('google-key.txt', 'r', encoding='utf-8') as key_file:
             api_key = key_file.read()
 
