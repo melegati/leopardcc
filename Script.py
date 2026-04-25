@@ -35,12 +35,14 @@ def prepare_log_dir(project_name: str, base_log_dir: str = "logs/") -> str:
 
     return log_dir
 
-def get_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
-    if model in ['gpt-4o-mini', 'gpt-4.1-mini', 'o4-mini', 'gpt-5-mini']:
-        return OpenAIModelWrapper(model, log_path)
-    elif model in ['gemini-2.0-flash-001', 'gemini-2.5-flash']:
-        return GoogleModelWrapper(model, log_path)
-    raise "Unknown model."
+def build_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
+    available_wrappers = [ OpenAIModelWrapper, GoogleModelWrapper ]
+    wrapper_for_model = next((wrapper for wrapper in available_wrappers if model in wrapper.get_configured_models()), None)
+
+    if wrapper_for_model is None:
+        raise "Unknown model."
+
+    return wrapper_for_model(model, log_path)
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
                             idx: int, time_series: list[TimeEntry], result: Result,
@@ -150,7 +152,7 @@ def main(project: ProjectInterface,
         try:
             llm_wrapper_logpath = log_dir + \
                 "/conversations/" + project.name + "-" + str(idx) + ".json"
-            llm_wrapper: LLMWrapperInterface = get_model_wrapper(model, llm_wrapper_logpath)
+            llm_wrapper: LLMWrapperInterface = build_model_wrapper(model, llm_wrapper_logpath)
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
             get_logger().info("Refactoring function #" + str(idx) + 
