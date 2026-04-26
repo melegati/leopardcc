@@ -1,9 +1,5 @@
-#!/usr/bin/env python3
-from __future__ import annotations
-
 import argparse
 import itertools
-import math
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -22,6 +18,7 @@ except ImportError as exc:  # pragma: no cover
 SETTINGS_FILE = "experiment.yml"
 RESULTS_SUMMARY_FILE = "analysis_summary.csv"
 RUNS_SUMMARY_FILE = "completed_runs.csv"
+SINGLE_MODE_SUMMARY_FILE = "single_option_summary.csv"
 
 
 class ExperimentError(Exception):
@@ -41,9 +38,10 @@ class RunCombination:
     project: str
     prompt_strategy: str
     model: str
+    run_index: int = 1
 
-    def key(self) -> Tuple[str, str, str]:
-        return (self.project, self.prompt_strategy, self.model)
+    def key(self) -> Tuple[str, str, str, int]:
+        return (self.project, self.prompt_strategy, self.model, self.run_index)
 
 
 @dataclass
@@ -78,34 +76,56 @@ class SettingsValidator:
         self.settings = settings
 
     def validate(self) -> Dict[str, Any]:
-        normalized = {
-            "prompt-strategy": self._ensure_string_list("prompt-strategy"),
-            "model": self._ensure_string_list("model"),
-            "project": self._ensure_string_list("project"),
-            "iterations": self._ensure_positive_int("iterations", default=1),
-            "tests": self._parse_tests(self.settings.get("tests", [])),
-            "script": self._ensure_script_path(),
-        }
+        prompt_values = self._ensure_string_list("prompt-strategy")
+        model_values = self._ensure_string_list("model")
+        project_values = self._ensure_string_list("project")
+        iterations = self._ensure_positive_int("iterations", default=1)
+        script = self._ensure_script_path()
+        number_of_runs = self._ensure_positive_int("number_of_runs", default=1)
 
-        prompt_count = len(normalized["prompt-strategy"])
-        model_count = len(normalized["model"])
-        if prompt_count > 1 and model_count > 1:
+        if len(prompt_values) > 2:
+            raise ExperimentError("'prompt-strategy' must contain one or two values.")
+        if len(model_values) > 2:
+            raise ExperimentError("'model' must contain one or two values.")
+
+        compare_prompt = len(prompt_values) == 2
+        compare_model = len(model_values) == 2
+        single_option_mode = len(prompt_values) == 1 and len(model_values) == 1
+
+        if compare_prompt and compare_model:
             raise ExperimentError(
                 "Invalid settings: the experiment may compare prompt strategies or models, but never both at the same time."
             )
 
-        if prompt_count < 2 and model_count < 2:
-            raise ExperimentError(
-                "Invalid settings: at least one of 'prompt-strategy' or 'model' must contain exactly two values to compare."
-            )
+        tests_raw = self.settings.get("tests")
 
-        if prompt_count not in (1, 2):
-            raise ExperimentError("'prompt-strategy' must contain one or two values.")
+        if single_option_mode:
+            if tests_raw:
+                raise ExperimentError(
+                    "No statistical test will be performed when both 'prompt-strategy' and 'model' contain only one option. Remove 'tests' from the settings."
+                )
+            return {
+                "prompt-strategy": prompt_values,
+                "model": model_values,
+                "project": project_values,
+                "iterations": iterations,
+                "tests": [],
+                "script": script,
+                "number_of_runs": number_of_runs,
+                "single_option_mode": True,
+            }
 
-        if model_count not in (1, 2):
-            raise ExperimentError("'model' must contain one or two values.")
-
-        return normalized
+        tests = self._parse_tests(tests_raw)
+        return {
+            "prompt-strategy": prompt_values,
+            "model": model_values,
+            "project": project_values,
+            "iterations": iterations,
+            "tests": tests,
+            "script": script,
+            "number_of_runs": 1,
+            "single_option_mode": False,
+        }
 
     def _ensure_string_list(self, key: str) -> List[str]:
         value = self.settings.get(key)
@@ -129,7 +149,7 @@ class SettingsValidator:
 
     def _parse_tests(self, raw_tests: Any) -> List[TestDefinition]:
         if not isinstance(raw_tests, list) or not raw_tests:
-            raise ExperimentError("'tests' must be a non-empty list.")
+            raise ExperimentError("'tests' must be a non-empty list when a comparison will be performed.")
 
         parsed: List[TestDefinition] = []
         for idx, test_def in enumerate(raw_tests, start=1):
@@ -161,12 +181,19 @@ class CombinationPlanner:
         self.settings = settings
 
     def build(self) -> List[RunCombination]:
+        runs = range(1, self.settings["number_of_runs"] + 1)
         return [
-            RunCombination(project=project, prompt_strategy=prompt_strategy, model=model)
-            for prompt_strategy, model, project in itertools.product(
+            RunCombination(
+                project=project,
+                prompt_strategy=prompt_strategy,
+                model=model,
+                run_index=run_index,
+            )
+            for prompt_strategy, model, project, run_index in itertools.product(
                 self.settings["prompt-strategy"],
                 self.settings["model"],
                 self.settings["project"],
+                runs,
             )
         ]
 
@@ -175,10 +202,10 @@ class ExistingRunScanner:
     def __init__(self, log_dir: Path) -> None:
         self.log_dir = log_dir
 
-    def scan(self) -> Dict[Tuple[str, str, str], RunRecord]:
-        records: Dict[Tuple[str, str, str], RunRecord] = {}
+    def scan(self) -> Dict[Tuple[str, str, str, int], RunRecord]:
+        grouped: Dict[Tuple[str, str, str], List[RunRecord]] = {}
         if not self.log_dir.exists():
-            return records
+            return {}
 
         for run_dir in sorted([path for path in self.log_dir.iterdir() if path.is_dir()]):
             csv_files = sorted(run_dir.glob("*.csv"))
@@ -196,18 +223,40 @@ class ExistingRunScanner:
                 if not required.issubset(frame.columns):
                     continue
                 last_row = frame.sort_values("iteration").iloc[-1]
-                combination = RunCombination(
-                    project=str(last_row["project"]),
-                    prompt_strategy=str(last_row["prompt_strategy"]),
-                    model=str(last_row["model"]),
+                base_key = (
+                    str(last_row["project"]),
+                    str(last_row["prompt_strategy"]),
+                    str(last_row["model"]),
                 )
-                records[combination.key()] = RunRecord(
-                    combination=combination,
-                    run_dir=run_dir,
-                    csv_file=csv_file,
+                grouped.setdefault(base_key, []).append(
+                    RunRecord(
+                        combination=RunCombination(
+                            project=base_key[0],
+                            prompt_strategy=base_key[1],
+                            model=base_key[2],
+                            run_index=0,
+                        ),
+                        run_dir=run_dir,
+                        csv_file=csv_file,
+                    )
                 )
                 break
-        return records
+
+        indexed: Dict[Tuple[str, str, str, int], RunRecord] = {}
+        for base_key, records in grouped.items():
+            for idx, record in enumerate(sorted(records, key=lambda item: str(item.run_dir)), start=1):
+                combination = RunCombination(
+                    project=base_key[0],
+                    prompt_strategy=base_key[1],
+                    model=base_key[2],
+                    run_index=idx,
+                )
+                indexed[combination.key()] = RunRecord(
+                    combination=combination,
+                    run_dir=record.run_dir,
+                    csv_file=record.csv_file,
+                )
+        return indexed
 
 
 class RunExecutor:
@@ -219,8 +268,8 @@ class RunExecutor:
     def execute_missing(
         self,
         combinations: Sequence[RunCombination],
-        existing_runs: Dict[Tuple[str, str, str], RunRecord],
-    ) -> Dict[Tuple[str, str, str], RunRecord]:
+        existing_runs: Dict[Tuple[str, str, str, int], RunRecord],
+    ) -> Dict[Tuple[str, str, str, int], RunRecord]:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         completed = dict(existing_runs)
 
@@ -244,37 +293,42 @@ class RunExecutor:
                 raise ExperimentError(
                     "A run failed for combination "
                     f"project={combination.project}, "
-                    f"prompt_strategy={combination.prompt_strategy}, model={combination.model}."
+                    f"prompt_strategy={combination.prompt_strategy}, "
+                    f"model={combination.model}, run_index={combination.run_index}."
                 )
 
             after = {path.resolve() for path in self.log_dir.iterdir() if path.is_dir()}
             new_dirs = sorted(after - before)
-            record = self._find_record_for_combination(combination, new_dirs)
-            if record is None:
-                record = self._find_record_by_rescan(combination)
+            record = self._find_new_record_for_combination(combination, new_dirs, completed)
             if record is None:
                 raise ExperimentError(
-                    "The run completed but its CSV results could not be located for combination "
-                    f"project={combination.project}, prompt_strategy={combination.prompt_strategy}, model={combination.model}."
+                    "The run completed but its CSV results could not be uniquely assigned for combination "
+                    f"project={combination.project}, prompt_strategy={combination.prompt_strategy}, "
+                    f"model={combination.model}, run_index={combination.run_index}."
                 )
             completed[combination.key()] = record
 
         return completed
 
-    def _find_record_for_combination(
-        self, combination: RunCombination, candidate_dirs: Iterable[Path]
+    def _find_new_record_for_combination(
+        self,
+        combination: RunCombination,
+        candidate_dirs: Iterable[Path],
+        completed: Dict[Tuple[str, str, str, int], RunRecord],
     ) -> Optional[RunRecord]:
+        used_dirs = {record.run_dir.resolve() for record in completed.values()}
+        matches: List[RunRecord] = []
         for run_dir in candidate_dirs:
+            if run_dir.resolve() in used_dirs:
+                continue
             csv_files = sorted(run_dir.glob("*.csv"))
             for csv_file in csv_files:
                 record = self._record_matches(combination, run_dir, csv_file)
                 if record is not None:
-                    return record
+                    matches.append(record)
+        if len(matches) == 1:
+            return matches[0]
         return None
-
-    def _find_record_by_rescan(self, combination: RunCombination) -> Optional[RunRecord]:
-        scanner = ExistingRunScanner(self.log_dir)
-        return scanner.scan().get(combination.key())
 
     def _record_matches(
         self, combination: RunCombination, run_dir: Path, csv_file: Path
@@ -317,18 +371,24 @@ class StatisticCalculator:
 
 
 class ResultsAnalyzer:
-    def __init__(self, settings: Dict[str, Any], run_records: Dict[Tuple[str, str, str], RunRecord]) -> None:
+    def __init__(self, settings: Dict[str, Any], run_records: Dict[Tuple[str, str, str, int], RunRecord]) -> None:
         self.settings = settings
         self.run_records = run_records
-        self.comparison_axis = self._detect_comparison_axis()
-        self.comparison_values = self.settings[self.comparison_axis]
-        self.fixed_axis = "model" if self.comparison_axis == "prompt-strategy" else "prompt-strategy"
 
     def analyze(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        if self.settings["single_option_mode"]:
+            return self._analyze_single_option_mode()
+        return self._analyze_comparison_mode()
+
+    def _analyze_comparison_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        comparison_axis = self._detect_comparison_axis()
+        comparison_values = self.settings[comparison_axis]
+        fixed_axis = "model" if comparison_axis == "prompt-strategy" else "prompt-strategy"
+
         runs_rows = []
         analysis_rows = []
 
-        grouped = self._group_records_by_pairing_unit()
+        grouped = self._group_records_by_pairing_unit(comparison_axis)
         for pair_key, compared_records in grouped.items():
             if len(compared_records) != 2:
                 raise ExperimentError(
@@ -337,21 +397,13 @@ class ResultsAnalyzer:
 
             ordered_records = sorted(
                 compared_records,
-                key=lambda record: self.comparison_values.index(
-                    getattr(record.combination, self._python_attr(self.comparison_axis))
+                key=lambda record: comparison_values.index(
+                    getattr(record.combination, self._python_attr(comparison_axis))
                 ),
             )
 
             for record in ordered_records:
-                runs_rows.append(
-                    {
-                        "project": record.combination.project,
-                        "prompt_strategy": record.combination.prompt_strategy,
-                        "model": record.combination.model,
-                        "run_dir": str(record.run_dir),
-                        "csv_file": str(record.csv_file),
-                    }
-                )
+                runs_rows.append(self._run_row(record))
 
             frames = [pd.read_csv(record.csv_file) for record in ordered_records]
             for test_def in self.settings["tests"]:
@@ -360,11 +412,11 @@ class ResultsAnalyzer:
                 analysis_rows.append(
                     {
                         "group": str(pair_key),
-                        "comparison_axis": self.comparison_axis,
-                        "option_a": self._comparison_value(ordered_records[0]),
-                        "option_b": self._comparison_value(ordered_records[1]),
+                        "comparison_axis": comparison_axis,
+                        "option_a": self._comparison_value(ordered_records[0], comparison_axis),
+                        "option_b": self._comparison_value(ordered_records[1], comparison_axis),
                         "fixed_value": getattr(
-                            ordered_records[0].combination, self._python_attr(self.fixed_axis)
+                            ordered_records[0].combination, self._python_attr(fixed_axis)
                         ),
                         "project": ordered_records[0].combination.project,
                         "variable": test_def.variable,
@@ -393,9 +445,9 @@ class ResultsAnalyzer:
             )
             summary_rows.append(
                 {
-                    "comparison_axis": self.comparison_axis,
-                    "option_a": self.comparison_values[0],
-                    "option_b": self.comparison_values[1],
+                    "comparison_axis": comparison_axis,
+                    "option_a": comparison_values[0],
+                    "option_b": comparison_values[1],
                     "variable": test_def.variable,
                     "metric_type": test_def.type,
                     "count_if": test_def.count_if,
@@ -409,19 +461,70 @@ class ResultsAnalyzer:
                 }
             )
 
-        summary_frame = pd.DataFrame(summary_rows)
         runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(
-            ["project", "prompt_strategy", "model"]
+            ["project", "prompt_strategy", "model", "run_index"]
         )
+        summary_frame = pd.DataFrame(summary_rows)
         return runs_frame, summary_frame
 
-    def _detect_comparison_axis(self) -> str:
-        return "prompt-strategy" if len(self.settings["prompt-strategy"]) == 2 else "model"
+    def _analyze_single_option_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        required_columns = ["new_prj_avg_cc", "new_fn_count", "new_avg_nloc"]
+        runs_rows = []
+        summary_rows = []
+        grouped: Dict[Tuple[str, str, str], List[RunRecord]] = {}
 
-    def _group_records_by_pairing_unit(self) -> Dict[Tuple[str, str], List[RunRecord]]:
+        for record in self.run_records.values():
+            grouped.setdefault(
+                (record.combination.project, record.combination.prompt_strategy, record.combination.model),
+                [],
+            ).append(record)
+
+        for key, records in sorted(grouped.items()):
+            if len(records) != self.settings["number_of_runs"]:
+                raise ExperimentError(
+                    f"Expected {self.settings['number_of_runs']} runs for {key}, found {len(records)}."
+                )
+
+            metric_values: Dict[str, List[float]] = {column: [] for column in required_columns}
+            for record in sorted(records, key=lambda item: item.combination.run_index):
+                runs_rows.append(self._run_row(record))
+                frame = pd.read_csv(record.csv_file)
+                if "iteration" not in frame.columns:
+                    raise ExperimentError("Column 'iteration' is required in result CSV files.")
+                ordered = frame.sort_values("iteration")
+                last_row = ordered.iloc[-1]
+                for column in required_columns:
+                    if column not in frame.columns:
+                        raise ExperimentError(f"Column '{column}' was not found in one of the result CSV files.")
+                    value = last_row[column]
+                    if pd.isna(value):
+                        raise ExperimentError(f"Last iteration value for '{column}' is missing.")
+                    metric_values[column].append(float(value))
+
+            summary_rows.append(
+                {
+                    "project": key[0],
+                    "prompt_strategy": key[1],
+                    "model": key[2],
+                    "number_of_runs": self.settings["number_of_runs"],
+                    "avg_new_prj_avg_cc": sum(metric_values["new_prj_avg_cc"]) / len(metric_values["new_prj_avg_cc"]),
+                    "avg_new_fn_count": sum(metric_values["new_fn_count"]) / len(metric_values["new_fn_count"]),
+                    "avg_new_avg_nloc": sum(metric_values["new_avg_nloc"]) / len(metric_values["new_avg_nloc"]),
+                }
+            )
+
+        runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(
+            ["project", "prompt_strategy", "model", "run_index"]
+        )
+        summary_frame = pd.DataFrame(summary_rows)
+        return runs_frame, summary_frame
+
+    def _group_records_by_pairing_unit(
+        self, comparison_axis: str
+    ) -> Dict[Tuple[str, str], List[RunRecord]]:
         groups: Dict[Tuple[str, str], List[RunRecord]] = {}
         for record in self.run_records.values():
-            if self.comparison_axis == "prompt-strategy":
+            if comparison_axis == "prompt-strategy":
                 key = (record.combination.project, record.combination.model)
             else:
                 key = (record.combination.project, record.combination.prompt_strategy)
@@ -447,8 +550,21 @@ class ResultsAnalyzer:
 
         raise ExperimentError(f"Unsupported metric type: {test_def.type}")
 
-    def _comparison_value(self, record: RunRecord) -> str:
-        return getattr(record.combination, self._python_attr(self.comparison_axis))
+    def _detect_comparison_axis(self) -> str:
+        return "prompt-strategy" if len(self.settings["prompt-strategy"]) == 2 else "model"
+
+    def _comparison_value(self, record: RunRecord, comparison_axis: str) -> str:
+        return getattr(record.combination, self._python_attr(comparison_axis))
+
+    def _run_row(self, record: RunRecord) -> Dict[str, Any]:
+        return {
+            "project": record.combination.project,
+            "prompt_strategy": record.combination.prompt_strategy,
+            "model": record.combination.model,
+            "run_index": record.combination.run_index,
+            "run_dir": str(record.run_dir),
+            "csv_file": str(record.csv_file),
+        }
 
     @staticmethod
     def _python_attr(name: str) -> str:
@@ -477,12 +593,13 @@ class ExperimentRunner:
 
         runs_frame, summary_frame = ResultsAnalyzer(settings, completed_runs).analyze()
         runs_frame.to_csv(self.experiment_dir / RUNS_SUMMARY_FILE, index=False)
-        summary_frame.to_csv(self.experiment_dir / RESULTS_SUMMARY_FILE, index=False)
+        output_name = SINGLE_MODE_SUMMARY_FILE if settings["single_option_mode"] else RESULTS_SUMMARY_FILE
+        summary_frame.to_csv(self.experiment_dir / output_name, index=False)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run and analyze a paired experiment defined by experiment.yml in the given folder."
+        description="Run and analyze an experiment defined by experiment.yml in the given folder."
     )
     parser.add_argument("experiment_folder", help="Folder containing experiment.yml")
     return parser.parse_args()
