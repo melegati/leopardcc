@@ -18,7 +18,7 @@ except ImportError as exc:  # pragma: no cover
 SETTINGS_FILE = "experiment.yml"
 RESULTS_SUMMARY_FILE = "analysis_summary.csv"
 RUNS_SUMMARY_FILE = "completed_runs.csv"
-SINGLE_MODE_SUMMARY_FILE = "single_option_summary.csv"
+SINGLE_MODE_SUMMARY_FILE = "analysis_summary.csv"
 
 
 class ExperimentError(Exception):
@@ -288,7 +288,7 @@ class RunExecutor:
                 f"--iterations={self.settings['iterations']}",
             ]
 
-            result = subprocess.run(command)
+            result = subprocess.run(command, cwd=self.experiment_dir)
             if result.returncode != 0:
                 raise ExperimentError(
                     "A run failed for combination "
@@ -468,7 +468,8 @@ class ResultsAnalyzer:
         return runs_frame, summary_frame
 
     def _analyze_single_option_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        required_columns = ["new_prj_avg_cc", "new_fn_count", "new_avg_nloc"]
+        new_columns = ["new_prj_avg_cc", "new_fn_count", "new_avg_nloc"]
+        old_columns = ["old_prj_avg_cc", "old_fn_count", "old_avg_nloc"]
         runs_rows = []
         summary_rows = []
         grouped: Dict[Tuple[str, str, str], List[RunRecord]] = {}
@@ -485,21 +486,32 @@ class ResultsAnalyzer:
                     f"Expected {self.settings['number_of_runs']} runs for {key}, found {len(records)}."
                 )
 
-            metric_values: Dict[str, List[float]] = {column: [] for column in required_columns}
+            new_metric_values: Dict[str, List[float]] = {column: [] for column in new_columns}
+            old_metric_values: Dict[str, List[float]] = {column: [] for column in old_columns}
             for record in sorted(records, key=lambda item: item.combination.run_index):
                 runs_rows.append(self._run_row(record))
                 frame = pd.read_csv(record.csv_file)
                 if "iteration" not in frame.columns:
                     raise ExperimentError("Column 'iteration' is required in result CSV files.")
                 ordered = frame.sort_values("iteration")
+                first_row = ordered.iloc[0]
                 last_row = ordered.iloc[-1]
-                for column in required_columns:
+
+                for column in old_columns:
+                    if column not in frame.columns:
+                        raise ExperimentError(f"Column '{column}' was not found in one of the result CSV files.")
+                    value = first_row[column]
+                    if pd.isna(value):
+                        raise ExperimentError(f"First iteration value for '{column}' is missing.")
+                    old_metric_values[column].append(float(value))
+
+                for column in new_columns:
                     if column not in frame.columns:
                         raise ExperimentError(f"Column '{column}' was not found in one of the result CSV files.")
                     value = last_row[column]
                     if pd.isna(value):
                         raise ExperimentError(f"Last iteration value for '{column}' is missing.")
-                    metric_values[column].append(float(value))
+                    new_metric_values[column].append(float(value))
 
             summary_rows.append(
                 {
@@ -507,9 +519,15 @@ class ResultsAnalyzer:
                     "prompt_strategy": key[1],
                     "model": key[2],
                     "number_of_runs": self.settings["number_of_runs"],
-                    "avg_new_prj_avg_cc": sum(metric_values["new_prj_avg_cc"]) / len(metric_values["new_prj_avg_cc"]),
-                    "avg_new_fn_count": sum(metric_values["new_fn_count"]) / len(metric_values["new_fn_count"]),
-                    "avg_new_avg_nloc": sum(metric_values["new_avg_nloc"]) / len(metric_values["new_avg_nloc"]),
+                    "avg_old_prj_avg_cc": sum(old_metric_values["old_prj_avg_cc"]) / len(old_metric_values["old_prj_avg_cc"]),
+                    "avg_new_prj_avg_cc": sum(new_metric_values["new_prj_avg_cc"]) / len(new_metric_values["new_prj_avg_cc"]),
+                    "stddev_new_prj_avg_cc": pd.Series(new_metric_values["new_prj_avg_cc"]).std(ddof=1) if len(new_metric_values["new_prj_avg_cc"]) > 1 else 0.0,
+                    "avg_old_fn_count": sum(old_metric_values["old_fn_count"]) / len(old_metric_values["old_fn_count"]),
+                    "avg_new_fn_count": sum(new_metric_values["new_fn_count"]) / len(new_metric_values["new_fn_count"]),
+                    "stddev_new_fn_count": pd.Series(new_metric_values["new_fn_count"]).std(ddof=1) if len(new_metric_values["new_fn_count"]) > 1 else 0.0,
+                    "avg_old_avg_nloc": sum(old_metric_values["old_avg_nloc"]) / len(old_metric_values["old_avg_nloc"]),
+                    "avg_new_avg_nloc": sum(new_metric_values["new_avg_nloc"]) / len(new_metric_values["new_avg_nloc"]),
+                    "stddev_new_avg_nloc": pd.Series(new_metric_values["new_avg_nloc"]).std(ddof=1) if len(new_metric_values["new_avg_nloc"]) > 1 else 0.0,
                 }
             )
 
