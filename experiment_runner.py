@@ -513,6 +513,19 @@ class ResultsAnalyzer:
                         raise ExperimentError(f"Last iteration value for '{column}' is missing.")
                     new_metric_values[column].append(float(value))
 
+            reduction_prj_avg_cc = [
+                self._percentage_change(old_value, new_value, mode="reduction")
+                for old_value, new_value in zip(old_metric_values["old_prj_avg_cc"], new_metric_values["new_prj_avg_cc"])
+            ]
+            increase_fn_count = [
+                self._percentage_change(old_value, new_value, mode="increase")
+                for old_value, new_value in zip(old_metric_values["old_fn_count"], new_metric_values["new_fn_count"])
+            ]
+            reduction_avg_nloc = [
+                self._percentage_change(old_value, new_value, mode="reduction")
+                for old_value, new_value in zip(old_metric_values["old_avg_nloc"], new_metric_values["new_avg_nloc"])
+            ]
+
             summary_rows.append(
                 {
                     "project": key[0],
@@ -522,12 +535,18 @@ class ResultsAnalyzer:
                     "avg_old_prj_avg_cc": sum(old_metric_values["old_prj_avg_cc"]) / len(old_metric_values["old_prj_avg_cc"]),
                     "avg_new_prj_avg_cc": sum(new_metric_values["new_prj_avg_cc"]) / len(new_metric_values["new_prj_avg_cc"]),
                     "stddev_new_prj_avg_cc": pd.Series(new_metric_values["new_prj_avg_cc"]).std(ddof=1) if len(new_metric_values["new_prj_avg_cc"]) > 1 else 0.0,
+                    "avg_reduction_pct_prj_avg_cc": sum(reduction_prj_avg_cc) / len(reduction_prj_avg_cc),
+                    "stddev_reduction_pct_prj_avg_cc": pd.Series(reduction_prj_avg_cc).std(ddof=1) if len(reduction_prj_avg_cc) > 1 else 0.0,
                     "avg_old_fn_count": sum(old_metric_values["old_fn_count"]) / len(old_metric_values["old_fn_count"]),
                     "avg_new_fn_count": sum(new_metric_values["new_fn_count"]) / len(new_metric_values["new_fn_count"]),
                     "stddev_new_fn_count": pd.Series(new_metric_values["new_fn_count"]).std(ddof=1) if len(new_metric_values["new_fn_count"]) > 1 else 0.0,
+                    "avg_increase_pct_fn_count": sum(increase_fn_count) / len(increase_fn_count),
+                    "stddev_increase_pct_fn_count": pd.Series(increase_fn_count).std(ddof=1) if len(increase_fn_count) > 1 else 0.0,
                     "avg_old_avg_nloc": sum(old_metric_values["old_avg_nloc"]) / len(old_metric_values["old_avg_nloc"]),
                     "avg_new_avg_nloc": sum(new_metric_values["new_avg_nloc"]) / len(new_metric_values["new_avg_nloc"]),
                     "stddev_new_avg_nloc": pd.Series(new_metric_values["new_avg_nloc"]).std(ddof=1) if len(new_metric_values["new_avg_nloc"]) > 1 else 0.0,
+                    "avg_reduction_pct_avg_nloc": sum(reduction_avg_nloc) / len(reduction_avg_nloc),
+                    "stddev_reduction_pct_avg_nloc": pd.Series(reduction_avg_nloc).std(ddof=1) if len(reduction_avg_nloc) > 1 else 0.0,
                 }
             )
 
@@ -573,6 +592,16 @@ class ResultsAnalyzer:
 
     def _comparison_value(self, record: RunRecord, comparison_axis: str) -> str:
         return getattr(record.combination, self._python_attr(comparison_axis))
+
+    @staticmethod
+    def _percentage_change(old_value: float, new_value: float, mode: str) -> float:
+        if old_value == 0:
+            raise ExperimentError("Cannot compute percentage change when the original value is zero.")
+        if mode == "reduction":
+            return ((old_value - new_value) / old_value) * 100.0
+        if mode == "increase":
+            return ((new_value - old_value) / old_value) * 100.0
+        raise ExperimentError(f"Unsupported percentage change mode: {mode}")
 
     def _run_row(self, record: RunRecord) -> Dict[str, Any]:
         return {
