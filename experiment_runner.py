@@ -18,7 +18,6 @@ except ImportError as exc:  # pragma: no cover
 SETTINGS_FILE = "experiment.yml"
 RESULTS_SUMMARY_FILE = "analysis_summary.csv"
 RUNS_SUMMARY_FILE = "completed_runs.csv"
-SINGLE_MODE_SUMMARY_FILE = "analysis_summary.csv"
 
 
 class ExperimentError(Exception):
@@ -31,6 +30,7 @@ class TestDefinition:
     type: str
     test: str
     count_if: Optional[Any] = None
+    combine_runs: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -61,17 +61,16 @@ class SettingsLoader:
             raise ExperimentError(
                 f"Missing settings file: {self.settings_path}. Aborting experiment."
             )
-
         with self.settings_path.open("r", encoding="utf-8") as handle:
             settings = yaml.safe_load(handle) or {}
-
         if not isinstance(settings, dict):
             raise ExperimentError("The settings file must contain a YAML mapping at the top level.")
-
         return settings
 
 
 class SettingsValidator:
+    VALID_COMBINE_RUNS = {"average", "standard_deviation", "maximum", "minimum"}
+
     def __init__(self, settings: Dict[str, Any]) -> None:
         self.settings = settings
 
@@ -88,15 +87,12 @@ class SettingsValidator:
         if len(model_values) > 2:
             raise ExperimentError("'model' must contain one or two values.")
 
-        compare_prompt = len(prompt_values) == 2
-        compare_model = len(model_values) == 2
-        single_option_mode = len(prompt_values) == 1 and len(model_values) == 1
-
-        if compare_prompt and compare_model:
+        if len(prompt_values) == 2 and len(model_values) == 2:
             raise ExperimentError(
                 "Invalid settings: the experiment may compare prompt strategies or models, but never both at the same time."
             )
 
+        single_option_mode = len(prompt_values) == 1 and len(model_values) == 1
         tests_raw = self.settings.get("tests")
 
         if single_option_mode:
@@ -104,18 +100,10 @@ class SettingsValidator:
                 raise ExperimentError(
                     "No statistical test will be performed when both 'prompt-strategy' and 'model' contain only one option. Remove 'tests' from the settings."
                 )
-            return {
-                "prompt-strategy": prompt_values,
-                "model": model_values,
-                "project": project_values,
-                "iterations": iterations,
-                "tests": [],
-                "script": script,
-                "number_of_runs": number_of_runs,
-                "single_option_mode": True,
-            }
+            tests: List[TestDefinition] = []
+        else:
+            tests = self._parse_tests(tests_raw, number_of_runs)
 
-        tests = self._parse_tests(tests_raw)
         return {
             "prompt-strategy": prompt_values,
             "model": model_values,
@@ -123,8 +111,8 @@ class SettingsValidator:
             "iterations": iterations,
             "tests": tests,
             "script": script,
-            "number_of_runs": 1,
-            "single_option_mode": False,
+            "number_of_runs": number_of_runs,
+            "single_option_mode": single_option_mode,
         }
 
     def _ensure_string_list(self, key: str) -> List[str]:
@@ -147,7 +135,7 @@ class SettingsValidator:
             raise ExperimentError("'script' must be a non-empty string when provided.")
         return value
 
-    def _parse_tests(self, raw_tests: Any) -> List[TestDefinition]:
+    def _parse_tests(self, raw_tests: Any, number_of_runs: int) -> List[TestDefinition]:
         if not isinstance(raw_tests, list) or not raw_tests:
             raise ExperimentError("'tests' must be a non-empty list when a comparison will be performed.")
 
@@ -160,6 +148,7 @@ class SettingsValidator:
             test_type = test_def.get("type")
             test_name = test_def.get("test")
             count_if = test_def.get("count_if")
+            combine_runs = test_def.get("combine_runs")
 
             if not isinstance(variable, str) or not variable.strip():
                 raise ExperimentError(f"Test #{idx}: 'variable' must be a non-empty string.")
@@ -170,8 +159,24 @@ class SettingsValidator:
             if test_type == "count" and "count_if" not in test_def:
                 raise ExperimentError(f"Test #{idx}: 'count_if' is required for count tests.")
 
+            if number_of_runs > 1:
+                if combine_runs not in self.VALID_COMBINE_RUNS:
+                    raise ExperimentError(
+                        f"Test #{idx}: 'combine_runs' is required when 'number_of_runs' is greater than one and must be one of average, standard_deviation, maximum, minimum."
+                    )
+            elif combine_runs is not None and combine_runs not in self.VALID_COMBINE_RUNS:
+                raise ExperimentError(
+                    f"Test #{idx}: 'combine_runs' must be one of average, standard_deviation, maximum, minimum when provided."
+                )
+
             parsed.append(
-                TestDefinition(variable=variable, type=test_type, test=test_name, count_if=count_if)
+                TestDefinition(
+                    variable=variable,
+                    type=test_type,
+                    test=test_name,
+                    count_if=count_if,
+                    combine_runs=combine_runs,
+                )
             )
         return parsed
 
@@ -183,12 +188,7 @@ class CombinationPlanner:
     def build(self) -> List[RunCombination]:
         runs = range(1, self.settings["number_of_runs"] + 1)
         return [
-            RunCombination(
-                project=project,
-                prompt_strategy=prompt_strategy,
-                model=model,
-                run_index=run_index,
-            )
+            RunCombination(project=project, prompt_strategy=prompt_strategy, model=model, run_index=run_index)
             for prompt_strategy, model, project, run_index in itertools.product(
                 self.settings["prompt-strategy"],
                 self.settings["model"],
@@ -207,12 +207,8 @@ class ExistingRunScanner:
         if not self.log_dir.exists():
             return {}
 
-        for run_dir in sorted([path for path in self.log_dir.iterdir() if path.is_dir()]):
-            csv_files = sorted(run_dir.glob("*.csv"))
-            if not csv_files:
-                continue
-
-            for csv_file in csv_files:
+        for run_dir in sorted(path for path in self.log_dir.iterdir() if path.is_dir()):
+            for csv_file in sorted(run_dir.glob("*.csv")):
                 try:
                     frame = pd.read_csv(csv_file)
                 except Exception:
@@ -230,12 +226,7 @@ class ExistingRunScanner:
                 )
                 grouped.setdefault(base_key, []).append(
                     RunRecord(
-                        combination=RunCombination(
-                            project=base_key[0],
-                            prompt_strategy=base_key[1],
-                            model=base_key[2],
-                            run_index=0,
-                        ),
+                        combination=RunCombination(base_key[0], base_key[1], base_key[2], 0),
                         run_dir=run_dir,
                         csv_file=csv_file,
                     )
@@ -245,17 +236,8 @@ class ExistingRunScanner:
         indexed: Dict[Tuple[str, str, str, int], RunRecord] = {}
         for base_key, records in grouped.items():
             for idx, record in enumerate(sorted(records, key=lambda item: str(item.run_dir)), start=1):
-                combination = RunCombination(
-                    project=base_key[0],
-                    prompt_strategy=base_key[1],
-                    model=base_key[2],
-                    run_index=idx,
-                )
-                indexed[combination.key()] = RunRecord(
-                    combination=combination,
-                    run_dir=record.run_dir,
-                    csv_file=record.csv_file,
-                )
+                combination = RunCombination(base_key[0], base_key[1], base_key[2], idx)
+                indexed[combination.key()] = RunRecord(combination, record.run_dir, record.csv_file)
         return indexed
 
 
@@ -276,7 +258,6 @@ class RunExecutor:
         for combination in combinations:
             if combination.key() in completed:
                 continue
-
             before = {path.resolve() for path in self.log_dir.iterdir() if path.is_dir()}
             command = [
                 sys.executable,
@@ -287,19 +268,16 @@ class RunExecutor:
                 f"--base-log-dir={self.log_dir}",
                 f"--iterations={self.settings['iterations']}",
             ]
-
             result = subprocess.run(command)
             if result.returncode != 0:
                 raise ExperimentError(
                     "A run failed for combination "
-                    f"project={combination.project}, "
-                    f"prompt_strategy={combination.prompt_strategy}, "
+                    f"project={combination.project}, prompt_strategy={combination.prompt_strategy}, "
                     f"model={combination.model}, run_index={combination.run_index}."
                 )
 
             after = {path.resolve() for path in self.log_dir.iterdir() if path.is_dir()}
-            new_dirs = sorted(after - before)
-            record = self._find_new_record_for_combination(combination, new_dirs, completed)
+            record = self._find_new_record_for_combination(combination, sorted(after - before), completed)
             if record is None:
                 raise ExperimentError(
                     "The run completed but its CSV results could not be uniquely assigned for combination "
@@ -307,7 +285,6 @@ class RunExecutor:
                     f"model={combination.model}, run_index={combination.run_index}."
                 )
             completed[combination.key()] = record
-
         return completed
 
     def _find_new_record_for_combination(
@@ -321,18 +298,13 @@ class RunExecutor:
         for run_dir in candidate_dirs:
             if run_dir.resolve() in used_dirs:
                 continue
-            csv_files = sorted(run_dir.glob("*.csv"))
-            for csv_file in csv_files:
+            for csv_file in sorted(run_dir.glob("*.csv")):
                 record = self._record_matches(combination, run_dir, csv_file)
                 if record is not None:
                     matches.append(record)
-        if len(matches) == 1:
-            return matches[0]
-        return None
+        return matches[0] if len(matches) == 1 else None
 
-    def _record_matches(
-        self, combination: RunCombination, run_dir: Path, csv_file: Path
-    ) -> Optional[RunRecord]:
+    def _record_matches(self, combination: RunCombination, run_dir: Path, csv_file: Path) -> Optional[RunRecord]:
         try:
             frame = pd.read_csv(csv_file)
         except Exception:
@@ -348,7 +320,7 @@ class RunExecutor:
             and str(last_row["prompt_strategy"]) == combination.prompt_strategy
             and str(last_row["model"]) == combination.model
         ):
-            return RunRecord(combination=combination, run_dir=run_dir, csv_file=csv_file)
+            return RunRecord(combination, run_dir, csv_file)
         return None
 
 
@@ -359,14 +331,12 @@ class StatisticCalculator:
             raise ExperimentError("Paired statistical tests require both samples to have the same size.")
         if len(sample_a) == 0:
             raise ExperimentError("No paired observations were available for the statistical test.")
-
         if test_name == "wilcoxon_signed_rank":
             stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative="two-sided")
             return float(stat.statistic), float(stat.pvalue)
         if test_name == "paired_t_test":
             stat = stats.ttest_rel(sample_a, sample_b, nan_policy="raise")
             return float(stat.statistic), float(stat.pvalue)
-
         raise ExperimentError(f"Unsupported statistical test: {test_name}")
 
     @staticmethod
@@ -375,14 +345,10 @@ class StatisticCalculator:
             raise ExperimentError("Effect size calculation requires paired samples of equal size.")
         if len(sample_a) == 0:
             raise ExperimentError("No paired observations were available for the effect size calculation.")
-
         if test_name == "paired_t_test":
             differences = pd.Series(sample_a, dtype=float) - pd.Series(sample_b, dtype=float)
             std_diff = float(differences.std(ddof=1)) if len(differences) > 1 else 0.0
-            if std_diff == 0.0:
-                return ("cohens_dz", 0.0)
-            return ("cohens_dz", float(differences.mean() / std_diff))
-
+            return ("cohens_dz", 0.0 if std_diff == 0.0 else float(differences.mean() / std_diff))
         if test_name == "wilcoxon_signed_rank":
             differences = [float(a) - float(b) for a, b in zip(sample_a, sample_b)]
             non_zero = [value for value in differences if value != 0]
@@ -393,13 +359,11 @@ class StatisticCalculator:
             positive_rank_sum = sum(rank for rank, value in zip(ranks, non_zero) if value > 0)
             negative_rank_sum = sum(rank for rank, value in zip(ranks, non_zero) if value < 0)
             total_rank_sum = positive_rank_sum + negative_rank_sum
-            if total_rank_sum == 0:
-                return ("rank_biserial_correlation", 0.0)
-            effect = (positive_rank_sum - negative_rank_sum) / total_rank_sum
-            return ("rank_biserial_correlation", float(effect))
-
+            return (
+                "rank_biserial_correlation",
+                0.0 if total_rank_sum == 0 else float((positive_rank_sum - negative_rank_sum) / total_rank_sum),
+            )
         raise ExperimentError(f"Unsupported test for effect size calculation: {test_name}")
-
 
     @staticmethod
     def interpret_effect_size(effect_size_name: str, effect_size_value: float) -> str:
@@ -429,51 +393,38 @@ class ResultsAnalyzer:
         self.run_records = run_records
 
     def analyze(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        if self.settings["single_option_mode"]:
-            return self._analyze_single_option_mode()
-        return self._analyze_comparison_mode()
+        return self._analyze_single_option_mode() if self.settings["single_option_mode"] else self._analyze_comparison_mode()
 
     def _analyze_comparison_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         comparison_axis = self._detect_comparison_axis()
         comparison_values = self.settings[comparison_axis]
         fixed_axis = "model" if comparison_axis == "prompt-strategy" else "prompt-strategy"
-
-        runs_rows = []
-        analysis_rows = []
-
         grouped = self._group_records_by_pairing_unit(comparison_axis)
-        for pair_key, compared_records in grouped.items():
-            if len(compared_records) != 2:
-                raise ExperimentError(
-                    f"Expected exactly 2 runs for paired comparison in group {pair_key}, found {len(compared_records)}."
-                )
+        runs_rows: List[Dict[str, Any]] = []
+        analysis_rows: List[Dict[str, Any]] = []
 
-            ordered_records = sorted(
-                compared_records,
-                key=lambda record: comparison_values.index(
-                    getattr(record.combination, self._python_attr(comparison_axis))
-                ),
-            )
-
-            for record in ordered_records:
+        for pair_key, option_map in grouped.items():
+            if set(option_map.keys()) != set(comparison_values):
+                raise ExperimentError(f"Missing comparison options for group {pair_key}.")
+            left_records = option_map[comparison_values[0]]
+            right_records = option_map[comparison_values[1]]
+            for record in left_records + right_records:
                 runs_rows.append(self._run_row(record))
-
-            frames = [pd.read_csv(record.csv_file) for record in ordered_records]
             for test_def in self.settings["tests"]:
-                left_value = self._extract_metric(frames[0], test_def)
-                right_value = self._extract_metric(frames[1], test_def)
+                left_value = self._combine_run_metrics(left_records, test_def)
+                right_value = self._combine_run_metrics(right_records, test_def)
                 analysis_rows.append(
                     {
                         "group": str(pair_key),
                         "comparison_axis": comparison_axis,
-                        "option_a": self._comparison_value(ordered_records[0], comparison_axis),
-                        "option_b": self._comparison_value(ordered_records[1], comparison_axis),
-                        "fixed_value": getattr(
-                            ordered_records[0].combination, self._python_attr(fixed_axis)
-                        ),
-                        "project": ordered_records[0].combination.project,
+                        "option_a": comparison_values[0],
+                        "option_b": comparison_values[1],
+                        "fixed_value": getattr(left_records[0].combination, self._python_attr(fixed_axis)),
+                        "project": left_records[0].combination.project,
                         "variable": test_def.variable,
                         "metric_type": test_def.type,
+                        "count_if": test_def.count_if,
+                        "combine_runs": test_def.combine_runs or "not_applicable",
                         "test": test_def.test,
                         "value_a": left_value,
                         "value_b": right_value,
@@ -484,29 +435,19 @@ class ResultsAnalyzer:
         if analysis_frame.empty:
             raise ExperimentError("No analysis rows were produced.")
 
-        summary_rows = []
+        summary_rows: List[Dict[str, Any]] = []
         for test_def in self.settings["tests"]:
+            combine_runs_value = test_def.combine_runs or "not_applicable"
             subset = analysis_frame[
                 (analysis_frame["variable"] == test_def.variable)
                 & (analysis_frame["metric_type"] == test_def.type)
                 & (analysis_frame["test"] == test_def.test)
+                & (analysis_frame["combine_runs"] == combine_runs_value)
             ]
             sample_a = subset["value_a"].tolist()
             sample_b = subset["value_b"].tolist()
-            statistic, pvalue = StatisticCalculator.run_test(
-                test_def.test,
-                sample_a,
-                sample_b,
-            )
-            effect_size_name, effect_size_value = StatisticCalculator.effect_size(
-                test_def.test,
-                sample_a,
-                sample_b,
-            )
-            effect_size_interpretation = StatisticCalculator.interpret_effect_size(
-                effect_size_name,
-                effect_size_value,
-            )
+            statistic, pvalue = StatisticCalculator.run_test(test_def.test, sample_a, sample_b)
+            effect_size_name, effect_size_value = StatisticCalculator.effect_size(test_def.test, sample_a, sample_b)
             summary_rows.append(
                 {
                     "comparison_axis": comparison_axis,
@@ -515,6 +456,7 @@ class ResultsAnalyzer:
                     "variable": test_def.variable,
                     "metric_type": test_def.type,
                     "count_if": test_def.count_if,
+                    "combine_runs": combine_runs_value,
                     "test": test_def.test,
                     "paired_samples": len(subset),
                     "mean_a": subset["value_a"].mean(),
@@ -523,36 +465,28 @@ class ResultsAnalyzer:
                     "pvalue": pvalue,
                     "effect_size_name": effect_size_name,
                     "effect_size_value": effect_size_value,
-                    "effect_size_interpretation": effect_size_interpretation,
+                    "effect_size_interpretation": StatisticCalculator.interpret_effect_size(effect_size_name, effect_size_value),
                     "significant_0_05": bool(pvalue < 0.05),
                 }
             )
 
-        runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(
-            ["project", "prompt_strategy", "model", "run_index"]
-        )
+        runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(["project", "prompt_strategy", "model", "run_index"])
         summary_frame = pd.DataFrame(summary_rows)
         return runs_frame, summary_frame
 
     def _analyze_single_option_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         new_columns = ["new_prj_avg_cc", "new_fn_count", "new_avg_nloc"]
         old_columns = ["old_prj_avg_cc", "old_fn_count", "old_avg_nloc"]
-        runs_rows = []
-        summary_rows = []
         grouped: Dict[Tuple[str, str, str], List[RunRecord]] = {}
+        runs_rows: List[Dict[str, Any]] = []
+        summary_rows: List[Dict[str, Any]] = []
 
         for record in self.run_records.values():
-            grouped.setdefault(
-                (record.combination.project, record.combination.prompt_strategy, record.combination.model),
-                [],
-            ).append(record)
+            grouped.setdefault((record.combination.project, record.combination.prompt_strategy, record.combination.model), []).append(record)
 
         for key, records in sorted(grouped.items()):
             if len(records) != self.settings["number_of_runs"]:
-                raise ExperimentError(
-                    f"Expected {self.settings['number_of_runs']} runs for {key}, found {len(records)}."
-                )
-
+                raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs for {key}, found {len(records)}.")
             new_metric_values: Dict[str, List[float]] = {column: [] for column in new_columns}
             old_metric_values: Dict[str, List[float]] = {column: [] for column in old_columns}
             for record in sorted(records, key=lambda item: item.combination.run_index):
@@ -563,35 +497,22 @@ class ResultsAnalyzer:
                 ordered = frame.sort_values("iteration")
                 first_row = ordered.iloc[0]
                 last_row = ordered.iloc[-1]
-
                 for column in old_columns:
                     if column not in frame.columns:
                         raise ExperimentError(f"Column '{column}' was not found in one of the result CSV files.")
-                    value = first_row[column]
-                    if pd.isna(value):
+                    if pd.isna(first_row[column]):
                         raise ExperimentError(f"First iteration value for '{column}' is missing.")
-                    old_metric_values[column].append(float(value))
-
+                    old_metric_values[column].append(float(first_row[column]))
                 for column in new_columns:
                     if column not in frame.columns:
                         raise ExperimentError(f"Column '{column}' was not found in one of the result CSV files.")
-                    value = last_row[column]
-                    if pd.isna(value):
+                    if pd.isna(last_row[column]):
                         raise ExperimentError(f"Last iteration value for '{column}' is missing.")
-                    new_metric_values[column].append(float(value))
+                    new_metric_values[column].append(float(last_row[column]))
 
-            reduction_prj_avg_cc = [
-                self._percentage_change(old_value, new_value, mode="reduction")
-                for old_value, new_value in zip(old_metric_values["old_prj_avg_cc"], new_metric_values["new_prj_avg_cc"])
-            ]
-            increase_fn_count = [
-                self._percentage_change(old_value, new_value, mode="increase")
-                for old_value, new_value in zip(old_metric_values["old_fn_count"], new_metric_values["new_fn_count"])
-            ]
-            reduction_avg_nloc = [
-                self._percentage_change(old_value, new_value, mode="reduction")
-                for old_value, new_value in zip(old_metric_values["old_avg_nloc"], new_metric_values["new_avg_nloc"])
-            ]
+            reduction_prj_avg_cc = [self._percentage_change(o, n, "reduction") for o, n in zip(old_metric_values["old_prj_avg_cc"], new_metric_values["new_prj_avg_cc"])]
+            increase_fn_count = [self._percentage_change(o, n, "increase") for o, n in zip(old_metric_values["old_fn_count"], new_metric_values["new_fn_count"])]
+            reduction_avg_nloc = [self._percentage_change(o, n, "reduction") for o, n in zip(old_metric_values["old_avg_nloc"], new_metric_values["new_avg_nloc"])]
 
             summary_rows.append(
                 {
@@ -617,48 +538,55 @@ class ResultsAnalyzer:
                 }
             )
 
-        runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(
-            ["project", "prompt_strategy", "model", "run_index"]
-        )
+        runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(["project", "prompt_strategy", "model", "run_index"])
         summary_frame = pd.DataFrame(summary_rows)
         return runs_frame, summary_frame
 
-    def _group_records_by_pairing_unit(
-        self, comparison_axis: str
-    ) -> Dict[Tuple[str, str], List[RunRecord]]:
-        groups: Dict[Tuple[str, str], List[RunRecord]] = {}
+    def _group_records_by_pairing_unit(self, comparison_axis: str) -> Dict[Tuple[str, str], Dict[str, List[RunRecord]]]:
+        groups: Dict[Tuple[str, str], Dict[str, List[RunRecord]]] = {}
         for record in self.run_records.values():
             if comparison_axis == "prompt-strategy":
-                key = (record.combination.project, record.combination.model)
+                pair_key = (record.combination.project, record.combination.model)
+                option_value = record.combination.prompt_strategy
             else:
-                key = (record.combination.project, record.combination.prompt_strategy)
-            groups.setdefault(key, []).append(record)
+                pair_key = (record.combination.project, record.combination.prompt_strategy)
+                option_value = record.combination.model
+            groups.setdefault(pair_key, {}).setdefault(option_value, []).append(record)
+        for pair_key, option_map in groups.items():
+            for option_value, records in option_map.items():
+                option_map[option_value] = sorted(records, key=lambda item: item.combination.run_index)
         return groups
+
+    def _combine_run_metrics(self, records: Sequence[RunRecord], test_def: TestDefinition) -> float:
+        if len(records) != self.settings["number_of_runs"]:
+            raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs but found {len(records)} for comparison aggregation.")
+        per_run_values = [self._extract_metric(pd.read_csv(record.csv_file), test_def) for record in records]
+        if len(per_run_values) == 1:
+            return float(per_run_values[0])
+        if test_def.combine_runs == "average":
+            return float(pd.Series(per_run_values, dtype=float).mean())
+        if test_def.combine_runs == "standard_deviation":
+            return float(pd.Series(per_run_values, dtype=float).std(ddof=1)) if len(per_run_values) > 1 else 0.0
+        if test_def.combine_runs == "maximum":
+            return float(max(per_run_values))
+        if test_def.combine_runs == "minimum":
+            return float(min(per_run_values))
+        raise ExperimentError("A valid 'combine_runs' value is required when combining multiple runs.")
 
     def _extract_metric(self, frame: pd.DataFrame, test_def: TestDefinition) -> float:
         if test_def.variable not in frame.columns:
             raise ExperimentError(f"Column '{test_def.variable}' was not found in one of the result CSV files.")
         if "iteration" not in frame.columns:
             raise ExperimentError("Column 'iteration' is required in result CSV files.")
-
         ordered = frame.sort_values("iteration")
         if test_def.type == "last_iteration":
             value = ordered.iloc[-1][test_def.variable]
             if pd.isna(value):
                 raise ExperimentError(f"Last iteration value for '{test_def.variable}' is missing.")
             return float(value)
-
         if test_def.type == "count":
-            count = (ordered[test_def.variable] == test_def.count_if).sum()
-            return float(count)
-
+            return float((ordered[test_def.variable] == test_def.count_if).sum())
         raise ExperimentError(f"Unsupported metric type: {test_def.type}")
-
-    def _detect_comparison_axis(self) -> str:
-        return "prompt-strategy" if len(self.settings["prompt-strategy"]) == 2 else "model"
-
-    def _comparison_value(self, record: RunRecord, comparison_axis: str) -> str:
-        return getattr(record.combination, self._python_attr(comparison_axis))
 
     @staticmethod
     def _percentage_change(old_value: float, new_value: float, mode: str) -> float:
@@ -669,6 +597,9 @@ class ResultsAnalyzer:
         if mode == "increase":
             return ((new_value - old_value) / old_value) * 100.0
         raise ExperimentError(f"Unsupported percentage change mode: {mode}")
+
+    def _detect_comparison_axis(self) -> str:
+        return "prompt-strategy" if len(self.settings["prompt-strategy"]) == 2 else "model"
 
     def _run_row(self, record: RunRecord) -> Dict[str, Any]:
         return {
@@ -692,29 +623,19 @@ class ExperimentRunner:
 
     def run(self) -> None:
         settings = SettingsValidator(SettingsLoader(self.experiment_dir).load()).validate()
-        planner = CombinationPlanner(settings)
-        combinations = planner.build()
-
-        scanner = ExistingRunScanner(self.log_dir)
-        existing_runs = scanner.scan()
-
-        executor = RunExecutor(self.experiment_dir, self.log_dir, settings)
-        completed_runs = executor.execute_missing(combinations, existing_runs)
-
+        combinations = CombinationPlanner(settings).build()
+        existing_runs = ExistingRunScanner(self.log_dir).scan()
+        completed_runs = RunExecutor(self.experiment_dir, self.log_dir, settings).execute_missing(combinations, existing_runs)
         missing = [combo for combo in combinations if combo.key() not in completed_runs]
         if missing:
             raise ExperimentError(f"Some combinations were not completed: {missing}")
-
         runs_frame, summary_frame = ResultsAnalyzer(settings, completed_runs).analyze()
         runs_frame.to_csv(self.experiment_dir / RUNS_SUMMARY_FILE, index=False)
-        output_name = SINGLE_MODE_SUMMARY_FILE if settings["single_option_mode"] else RESULTS_SUMMARY_FILE
-        summary_frame.to_csv(self.experiment_dir / output_name, index=False)
+        summary_frame.to_csv(self.experiment_dir / RESULTS_SUMMARY_FILE, index=False)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run and analyze an experiment defined by experiment.yml in the given folder."
-    )
+    parser = argparse.ArgumentParser(description="Run and analyze an experiment defined by experiment.yml in the given folder.")
     parser.add_argument("experiment_folder", help="Folder containing experiment.yml")
     return parser.parse_args()
 

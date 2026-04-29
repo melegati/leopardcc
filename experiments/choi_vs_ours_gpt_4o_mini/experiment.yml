@@ -21,6 +21,7 @@ project:
 - Svgo
 - Winston
 - WS
+number_of_runs: 1
 tests:
 - 
   variable: new_prj_avg_cc
