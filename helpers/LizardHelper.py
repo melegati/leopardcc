@@ -9,7 +9,7 @@ from interfaces.LizardResult import LizardResult
 
 def compute_cyclomatic_complexity(path: str) -> list[LizardResult]:
     extensions = lizard.get_extensions(extension_names=["io"])
-    analysis = lizard.analyze(paths=[path], exts=extensions)
+    analysis = lizard.analyze(paths=[path], exts=extensions, exclude_pattern=['*/.yarn/*'])
 
     functions = list()
     for file in list(analysis):
