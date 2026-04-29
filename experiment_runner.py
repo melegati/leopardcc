@@ -369,6 +369,59 @@ class StatisticCalculator:
 
         raise ExperimentError(f"Unsupported statistical test: {test_name}")
 
+    @staticmethod
+    def effect_size(test_name: str, sample_a: Sequence[float], sample_b: Sequence[float]) -> Tuple[str, float]:
+        if len(sample_a) != len(sample_b):
+            raise ExperimentError("Effect size calculation requires paired samples of equal size.")
+        if len(sample_a) == 0:
+            raise ExperimentError("No paired observations were available for the effect size calculation.")
+
+        if test_name == "paired_t_test":
+            differences = pd.Series(sample_a, dtype=float) - pd.Series(sample_b, dtype=float)
+            std_diff = float(differences.std(ddof=1)) if len(differences) > 1 else 0.0
+            if std_diff == 0.0:
+                return ("cohens_dz", 0.0)
+            return ("cohens_dz", float(differences.mean() / std_diff))
+
+        if test_name == "wilcoxon_signed_rank":
+            differences = [float(a) - float(b) for a, b in zip(sample_a, sample_b)]
+            non_zero = [value for value in differences if value != 0]
+            if not non_zero:
+                return ("rank_biserial_correlation", 0.0)
+            abs_values = [abs(value) for value in non_zero]
+            ranks = stats.rankdata(abs_values, method="average")
+            positive_rank_sum = sum(rank for rank, value in zip(ranks, non_zero) if value > 0)
+            negative_rank_sum = sum(rank for rank, value in zip(ranks, non_zero) if value < 0)
+            total_rank_sum = positive_rank_sum + negative_rank_sum
+            if total_rank_sum == 0:
+                return ("rank_biserial_correlation", 0.0)
+            effect = (positive_rank_sum - negative_rank_sum) / total_rank_sum
+            return ("rank_biserial_correlation", float(effect))
+
+        raise ExperimentError(f"Unsupported test for effect size calculation: {test_name}")
+
+
+    @staticmethod
+    def interpret_effect_size(effect_size_name: str, effect_size_value: float) -> str:
+        magnitude = abs(effect_size_value)
+        if effect_size_name == "cohens_dz":
+            if magnitude < 0.2:
+                return "negligible"
+            if magnitude < 0.5:
+                return "small"
+            if magnitude < 0.8:
+                return "medium"
+            return "large"
+        if effect_size_name == "rank_biserial_correlation":
+            if magnitude < 0.1:
+                return "negligible"
+            if magnitude < 0.3:
+                return "small"
+            if magnitude < 0.5:
+                return "medium"
+            return "large"
+        raise ExperimentError(f"Unsupported effect size interpretation: {effect_size_name}")
+
 
 class ResultsAnalyzer:
     def __init__(self, settings: Dict[str, Any], run_records: Dict[Tuple[str, str, str, int], RunRecord]) -> None:
@@ -438,10 +491,21 @@ class ResultsAnalyzer:
                 & (analysis_frame["metric_type"] == test_def.type)
                 & (analysis_frame["test"] == test_def.test)
             ]
+            sample_a = subset["value_a"].tolist()
+            sample_b = subset["value_b"].tolist()
             statistic, pvalue = StatisticCalculator.run_test(
                 test_def.test,
-                subset["value_a"].tolist(),
-                subset["value_b"].tolist(),
+                sample_a,
+                sample_b,
+            )
+            effect_size_name, effect_size_value = StatisticCalculator.effect_size(
+                test_def.test,
+                sample_a,
+                sample_b,
+            )
+            effect_size_interpretation = StatisticCalculator.interpret_effect_size(
+                effect_size_name,
+                effect_size_value,
             )
             summary_rows.append(
                 {
@@ -457,6 +521,9 @@ class ResultsAnalyzer:
                     "mean_b": subset["value_b"].mean(),
                     "statistic": statistic,
                     "pvalue": pvalue,
+                    "effect_size_name": effect_size_name,
+                    "effect_size_value": effect_size_value,
+                    "effect_size_interpretation": effect_size_interpretation,
                     "significant_0_05": bool(pvalue < 0.05),
                 }
             )
