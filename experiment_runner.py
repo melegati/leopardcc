@@ -288,7 +288,7 @@ class RunExecutor:
                 f"--iterations={self.settings['iterations']}",
             ]
 
-            result = subprocess.run(command, cwd=self.experiment_dir)
+            result = subprocess.run(command)
             if result.returncode != 0:
                 raise ExperimentError(
                     "A run failed for combination "
