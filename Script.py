@@ -1,11 +1,8 @@
 from datetime import datetime, timezone
 from llm_wrappers.GoogleModelWrapper import GoogleModelWrapper
-from llm_wrappers.GoogleTokenCounter import GoogleTokenCounter
 from llm_wrappers.OllamaModelWrapper import OllamaModelWrapper
-from llm_wrappers.OpenAIAPIWrapper import OpenAIAPIWrapper
 from llm_wrappers.OpenAIModelWrapper import OpenAIModelWrapper
-from prompt_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlPrompt
-from prompt_strategies.Scheibe import Scheibe
+from prompt_strategies.ChoiEtAlPromptStrategy import ChoiEtAlPromptStrategy as ChoiEtAlPrompt
 from verification_strategies.ChoiEtAl import ChoiEtAl as ChoiEtAlVerification
 from util.Logger import get_logger, add_log_file_handler, reset_logger
 from util.CSVWriter import save_time_entries_to_csv
@@ -28,7 +25,7 @@ import importlib.util
 import re
 
 def prepare_log_dir(project_name: str, base_log_dir: str = "logs/") -> str:
-    timestamp = filename = datetime.now(timezone.utc).strftime(
+    timestamp = datetime.now(timezone.utc).strftime(
         "%Y-%m-%d-%H-%M-%S")
     log_dir = os.path.join(base_log_dir, timestamp + "-" + project_name)
     if not os.path.exists(log_dir):
@@ -218,7 +215,7 @@ def read_args():
 
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
-    parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Scheibe', 'Melegati'], default='ChoiEtAl')
+    parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Ours'], default='ChoiEtAl')
     parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'gemini-2.5-flash', 'gpt-5-mini', 'deepseek-r1:1.5b'], default='gpt-4o-mini')
     parser.add_argument("--base-log-dir", type=str, default="logs/")
     parser.add_argument("--iterations", type=int, default=20)
@@ -238,7 +235,7 @@ if __name__ == "__main__":
     args = read_args()
 
     projectClass = get_class(args.project_folder, args.project)
-    promptStrategyClass = get_class('prompt_strategies', args.prompt_strategy)
+    promptStrategyClass = get_class('prompt_strategies', args.prompt_strategy + "PromptStrategy")
 
     main(project=projectClass(), 
          prompt_strategy=promptStrategyClass(), 

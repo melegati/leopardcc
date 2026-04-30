@@ -3,7 +3,7 @@ from interfaces.LintError import LintError
 from interfaces.TestError import TestError
 
 
-class Melegati(PromptStrategyInterface):
+class OursPromptStrategy(PromptStrategyInterface):
     """Prompts adapted to JavaScript and improved taken from Choi, Jinsu et al. 2024: 'Iterative Refactoring of Real-World Open-Source Programs with Large Language Models'"""
 
     def __init__(self):
@@ -21,7 +21,7 @@ class Melegati(PromptStrategyInterface):
 
     @property
     def name(self):
-        return "Melegati"
+        return "Ours"
     
     def initial_prompt(self, code: str) -> str:
 

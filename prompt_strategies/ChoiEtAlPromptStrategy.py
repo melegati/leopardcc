@@ -3,7 +3,7 @@ from interfaces.LintError import LintError
 from interfaces.TestError import TestError
 
 
-class ChoiEtAl(PromptStrategyInterface):
+class ChoiEtAlPromptStrategy(PromptStrategyInterface):
     """Prompts adapted to JavaScript, taken from Choi, Jinsu et al. 2024: 'Iterative Refactoring of Real-World Open-Source Programs with Large Language Models'"""
 
     @property

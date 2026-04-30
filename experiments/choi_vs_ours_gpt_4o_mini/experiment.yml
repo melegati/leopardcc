@@ -1,6 +1,6 @@
 prompt-strategy:
 - ChoiEtAl
-- Melegati
+- Ours
 model:
 - gpt-4o-mini
 iterations: 20

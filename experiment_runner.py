@@ -477,6 +477,7 @@ class ResultsAnalyzer:
     def _analyze_single_option_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         new_columns = ["new_prj_avg_cc", "new_fn_count", "new_avg_nloc"]
         old_columns = ["old_prj_avg_cc", "old_fn_count", "old_avg_nloc"]
+        last_iteration_old_cc_column = "old_cc"
         grouped: Dict[Tuple[str, str, str], List[RunRecord]] = {}
         runs_rows: List[Dict[str, Any]] = []
         summary_rows: List[Dict[str, Any]] = []
@@ -489,6 +490,7 @@ class ResultsAnalyzer:
                 raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs for {key}, found {len(records)}.")
             new_metric_values: Dict[str, List[float]] = {column: [] for column in new_columns}
             old_metric_values: Dict[str, List[float]] = {column: [] for column in old_columns}
+            last_iteration_old_cc_values: List[float] = []
             for record in sorted(records, key=lambda item: item.combination.run_index):
                 runs_rows.append(self._run_row(record))
                 frame = pd.read_csv(record.csv_file)
@@ -509,6 +511,11 @@ class ResultsAnalyzer:
                     if pd.isna(last_row[column]):
                         raise ExperimentError(f"Last iteration value for '{column}' is missing.")
                     new_metric_values[column].append(float(last_row[column]))
+                if last_iteration_old_cc_column not in frame.columns:
+                    raise ExperimentError(f"Column '{last_iteration_old_cc_column}' was not found in one of the result CSV files.")
+                if pd.isna(last_row[last_iteration_old_cc_column]):
+                    raise ExperimentError(f"Last iteration value for '{last_iteration_old_cc_column}' is missing.")
+                last_iteration_old_cc_values.append(float(last_row[last_iteration_old_cc_column]))
 
             reduction_prj_avg_cc = [self._percentage_change(o, n, "reduction") for o, n in zip(old_metric_values["old_prj_avg_cc"], new_metric_values["new_prj_avg_cc"])]
             increase_fn_count = [self._percentage_change(o, n, "increase") for o, n in zip(old_metric_values["old_fn_count"], new_metric_values["new_fn_count"])]
@@ -520,6 +527,7 @@ class ResultsAnalyzer:
                     "prompt_strategy": key[1],
                     "model": key[2],
                     "number_of_runs": self.settings["number_of_runs"],
+                    "avg_old_cc_last_iteration": sum(last_iteration_old_cc_values) / len(last_iteration_old_cc_values),
                     "avg_old_prj_avg_cc": sum(old_metric_values["old_prj_avg_cc"]) / len(old_metric_values["old_prj_avg_cc"]),
                     "avg_new_prj_avg_cc": sum(new_metric_values["new_prj_avg_cc"]) / len(new_metric_values["new_prj_avg_cc"]),
                     "stddev_new_prj_avg_cc": pd.Series(new_metric_values["new_prj_avg_cc"]).std(ddof=1) if len(new_metric_values["new_prj_avg_cc"]) > 1 else 0.0,
