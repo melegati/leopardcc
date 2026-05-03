@@ -38,7 +38,7 @@ mdurl==0.1.2
 more-itertools==10.7.0
 nest-asyncio==1.6.0
 numpy==2.4.4
-openai==2.32.0
+openai==2.33.0
 packaging==24.1
 pandas==3.0.2
 parso==0.8.4

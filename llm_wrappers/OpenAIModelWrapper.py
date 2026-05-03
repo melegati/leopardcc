@@ -6,7 +6,8 @@ class OpenAIModelWrapper(OpenAIAPIWrapper):
 
     configured_models_max_context = {'gpt-4o-mini': 128000, 
                                      'gpt-4.1-mini':1047576, 
-                                     'gpt-5-mini': 400000}
+                                     'gpt-5-mini': 400000,
+                                     'gpt-5-nano': 400000}
     
     @staticmethod
     def get_configured_models():
