@@ -21,6 +21,7 @@ class OllamaModelWrapper(OpenAIAPIWrapper):
 
     def __init__(self,
                  model: str,
+                 reasoning_effort: str,
                 log_path: str):
 
         super().__init__(
@@ -28,6 +29,7 @@ class OllamaModelWrapper(OpenAIAPIWrapper):
             log_path = log_path,
             token_counter=TransformersTokenCounter(self.configured_models[model]['hf_tokenizer']),
             model = model,
+            reasoning_effort=reasoning_effort,
             max_context_length=self.configured_models[model]['max_context'],
             base_url="http://localhost:11434/v1/"
         )

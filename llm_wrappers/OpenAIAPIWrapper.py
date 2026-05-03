@@ -19,13 +19,15 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
                  token_counter: TokenCounter, 
                  model: str, 
                  max_context_length: int = 128000, 
-                 base_url: str = None):
+                 base_url: str = None,
+                 reasoning_effort: str = None):
         self.api_key = api_key
         self.__model = model
         self.log_path = log_path
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
         self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.reasoning_effort = reasoning_effort
         self.token_counter = token_counter
         self.__sent_tokens_count = 0
         self.__received_tokens_count = 0
@@ -68,6 +70,20 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
             print(
                 f"Failed to save message history to {self.log_path}: {e}")
 
+    def _send_message(self, context):
+        if self.reasoning_effort is None:
+            completion = self.client.chat.completions.create(
+                        model=self.__model,
+                        messages=context
+                    )
+        else:
+            completion = self.client.chat.completions.create(
+                        model=self.__model,
+                        reasoning_effort=self.reasoning_effort,
+                        messages=context
+                    )
+        return completion
+
     def send_message(self, prompt: str):
         context = self.__get_context(prompt)
 
@@ -75,10 +91,7 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
         base_delay = 5
         while not was_completion_successful:
             try:
-                completion = self.client.chat.completions.create(
-                    model=self.__model,
-                    messages=context
-                )
+                completion = self._send_message(context)
                 was_completion_successful = True
             
             except RateLimitError as e:

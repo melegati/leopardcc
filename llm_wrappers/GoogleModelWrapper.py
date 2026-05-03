@@ -12,6 +12,7 @@ class GoogleModelWrapper(OpenAIAPIWrapper):
 
     def __init__(self,
                  model: str,
+                 reasoning_effort: str,
                 log_path: str):
         with open('google-key.txt', 'r', encoding='utf-8') as key_file:
             api_key = key_file.read()
@@ -21,6 +22,7 @@ class GoogleModelWrapper(OpenAIAPIWrapper):
             log_path = log_path,
             token_counter=GoogleTokenCounter(model, api_key),
             model = model,
+            reasoning_effort=reasoning_effort,
             max_context_length=self.configured_models_max_context[model],
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         )

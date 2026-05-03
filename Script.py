@@ -33,14 +33,14 @@ def prepare_log_dir(project_name: str, base_log_dir: str = "logs/") -> str:
 
     return log_dir
 
-def build_model_wrapper(model: str, log_path: str) -> LLMWrapperInterface:
+def build_model_wrapper(model: str, reasoning_effort: str, log_path: str) -> LLMWrapperInterface:
     available_wrappers = [ OpenAIModelWrapper, GoogleModelWrapper, OllamaModelWrapper ]
     wrapper_for_model = next((wrapper for wrapper in available_wrappers if model in wrapper.get_configured_models()), None)
 
     if wrapper_for_model is None:
         raise "Unknown model."
 
-    return wrapper_for_model(model, log_path)
+    return wrapper_for_model(model, reasoning_effort, log_path)
 
 def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterface, 
                             idx: int, time_series: list[TimeEntry], result: Result,
@@ -109,6 +109,7 @@ def main(project: ProjectInterface,
          prompt_strategy: PromptStrategyInterface = ChoiEtAlPrompt(),
          verification_strategy: VerificationStrategyInterface = ChoiEtAlVerification(),
          model: str = "gpt-4o-mini",
+         reasoning_effort: str = None,
          base_log_dir: str = "logs/",
          iterations: int = 20) -> None:
 
@@ -118,6 +119,8 @@ def main(project: ProjectInterface,
 
     get_logger().info("Refactoring project " + project.name)
     get_logger().info("LLM: " + model)
+    if reasoning_effort is not None:
+        get_logger().info("Reasoning effort: " + reasoning_effort)
     get_logger().info("Prompt strategy: " + prompt_strategy.name)
     get_logger().info("Verification strategy: " + verification_strategy.name)
 
@@ -150,7 +153,7 @@ def main(project: ProjectInterface,
         try:
             llm_wrapper_logpath = log_dir + \
                 "/conversations/" + project.name + "-" + str(idx) + ".json"
-            llm_wrapper: LLMWrapperInterface = build_model_wrapper(model, llm_wrapper_logpath)
+            llm_wrapper: LLMWrapperInterface = build_model_wrapper(model, reasoning_effort, llm_wrapper_logpath)
             function = Function(lizard_result, project,
                                 llm_wrapper, prompt_strategy)
             get_logger().info("Refactoring function #" + str(idx) + 
@@ -217,6 +220,7 @@ def read_args():
     parser.add_argument("--project-folder", type=str, default="projects")
     parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Ours'], default='ChoiEtAl')
     parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'gemini-2.5-flash', 'gpt-5-mini', 'gpt-5-nano', 'deepseek-r1:1.5b'], default='gpt-4o-mini')
+    parser.add_argument("--reasoning-effort", type=str)
     parser.add_argument("--base-log-dir", type=str, default="logs/")
     parser.add_argument("--iterations", type=int, default=20)
 
@@ -240,5 +244,6 @@ if __name__ == "__main__":
     main(project=projectClass(), 
          prompt_strategy=promptStrategyClass(), 
          model=args.model,
+         reasoning_effort=args.reasoning_effort,
          base_log_dir=args.base_log_dir,
          iterations=args.iterations)
