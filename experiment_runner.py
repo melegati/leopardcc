@@ -153,8 +153,8 @@ class SettingsValidator:
 
             if not isinstance(variable, str) or not variable.strip():
                 raise ExperimentError(f"Test #{idx}: 'variable' must be a non-empty string.")
-            if test_type not in {"last_iteration", "count"}:
-                raise ExperimentError(f"Test #{idx}: 'type' must be 'last_iteration' or 'count'.")
+            if test_type not in {"last_iteration", "count", "last_iteration_reduction"}:
+                raise ExperimentError(f"Test #{idx}: 'type' must be 'last_iteration', 'count', or 'last_iteration_reduction'.")
             if not isinstance(test_name, str) or not test_name.strip():
                 raise ExperimentError(f"Test #{idx}: 'test' must be a non-empty string.")
             if test_type == "count" and "count_if" not in test_def:
@@ -333,7 +333,7 @@ class StatisticCalculator:
         if len(sample_a) == 0:
             raise ExperimentError("No paired observations were available for the statistical test.")
         if test_name == "wilcoxon_signed_rank":
-            stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative="greater")
+            stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative="two-sided")
             return float(stat.statistic), float(stat.pvalue)
         if test_name == "paired_t_test":
             stat = stats.ttest_rel(sample_a, sample_b, nan_policy="raise")
@@ -442,6 +442,13 @@ class ResultsAnalyzer:
                 metric_name = self._combined_metric_column_name(test_def)
                 combined_row[f"{comparison_values[0]}__{metric_name}"] = left_value
                 combined_row[f"{comparison_values[1]}__{metric_name}"] = right_value
+                if test_def.type == "last_iteration_reduction":
+                    left_first, left_last = self._combine_first_last_values(left_records, test_def)
+                    right_first, right_last = self._combine_first_last_values(right_records, test_def)
+                    combined_row[f"{comparison_values[0]}__{test_def.variable}__first_iteration__{test_def.combine_runs or 'not_applicable'}"] = left_first
+                    combined_row[f"{comparison_values[0]}__{test_def.variable}__last_iteration__{test_def.combine_runs or 'not_applicable'}"] = left_last
+                    combined_row[f"{comparison_values[1]}__{test_def.variable}__first_iteration__{test_def.combine_runs or 'not_applicable'}"] = right_first
+                    combined_row[f"{comparison_values[1]}__{test_def.variable}__last_iteration__{test_def.combine_runs or 'not_applicable'}"] = right_last
             combined_project_rows.append(combined_row)
 
         analysis_frame = pd.DataFrame(analysis_rows)
@@ -581,6 +588,37 @@ class ResultsAnalyzer:
                 option_map[option_value] = sorted(records, key=lambda item: item.combination.run_index)
         return groups
 
+    def _combine_first_last_values(self, records: Sequence[RunRecord], test_def: TestDefinition) -> Tuple[float, float]:
+        first_column = self._old_column_name(test_def.variable)
+        first_values: List[float] = []
+        last_values: List[float] = []
+        for record in records:
+            frame = pd.read_csv(record.csv_file)
+            if first_column not in frame.columns:
+                raise ExperimentError(f"Column '{first_column}' was not found in one of the result CSV files.")
+            if test_def.variable not in frame.columns:
+                raise ExperimentError(f"Column '{test_def.variable}' was not found in one of the result CSV files.")
+            if "iteration" not in frame.columns:
+                raise ExperimentError("Column 'iteration' is required in result CSV files.")
+            ordered = frame.sort_values("iteration")
+            first_value = ordered.iloc[0][first_column]
+            last_value = ordered.iloc[-1][test_def.variable]
+            if pd.isna(first_value):
+                raise ExperimentError(f"First iteration value for '{first_column}' is missing.")
+            if pd.isna(last_value):
+                raise ExperimentError(f"Last iteration value for '{test_def.variable}' is missing.")
+            first_values.append(float(first_value))
+            last_values.append(float(last_value))
+        return self._combine_numeric_values(first_values, test_def.combine_runs), self._combine_numeric_values(last_values, test_def.combine_runs)
+
+    @staticmethod
+    def _old_column_name(variable_name: str) -> str:
+        if variable_name.startswith("new_"):
+            return "old_" + variable_name[4:]
+        raise ExperimentError(
+            f"Cannot infer the corresponding old-variable name for '{variable_name}'. Expected a variable starting with 'new_'."
+        )
+
     def _combined_metric_column_name(self, test_def: TestDefinition) -> str:
         parts = [test_def.variable, test_def.type]
         if test_def.type == "count" and test_def.count_if is not None:
@@ -591,18 +629,21 @@ class ResultsAnalyzer:
 
     def _combine_run_metrics(self, records: Sequence[RunRecord], test_def: TestDefinition) -> float:
         if len(records) != self.settings["number_of_runs"]:
-            raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs but found {len(records)} for comparison aggregation for {records[0].combination.project}.")
+            raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs but found {len(records)} for comparison aggregation.")
         per_run_values = [self._extract_metric(pd.read_csv(record.csv_file), test_def) for record in records]
-        if len(per_run_values) == 1:
-            return float(per_run_values[0])
-        if test_def.combine_runs == "average":
-            return float(pd.Series(per_run_values, dtype=float).mean())
-        if test_def.combine_runs == "standard_deviation":
-            return float(pd.Series(per_run_values, dtype=float).std(ddof=1)) if len(per_run_values) > 1 else 0.0
-        if test_def.combine_runs == "maximum":
-            return float(max(per_run_values))
-        if test_def.combine_runs == "minimum":
-            return float(min(per_run_values))
+        return self._combine_numeric_values(per_run_values, test_def.combine_runs)
+
+    def _combine_numeric_values(self, values: Sequence[float], combine_runs: Optional[str]) -> float:
+        if len(values) == 1:
+            return float(values[0])
+        if combine_runs == "average":
+            return float(pd.Series(values, dtype=float).mean())
+        if combine_runs == "standard_deviation":
+            return float(pd.Series(values, dtype=float).std(ddof=1)) if len(values) > 1 else 0.0
+        if combine_runs == "maximum":
+            return float(max(values))
+        if combine_runs == "minimum":
+            return float(min(values))
         raise ExperimentError("A valid 'combine_runs' value is required when combining multiple runs.")
 
     def _extract_metric(self, frame: pd.DataFrame, test_def: TestDefinition) -> float:
@@ -616,6 +657,14 @@ class ResultsAnalyzer:
             if pd.isna(value):
                 raise ExperimentError(f"Last iteration value for '{test_def.variable}' is missing.")
             return float(value)
+        if test_def.type == "last_iteration_reduction":
+            first_value = ordered.iloc[0][test_def.variable]
+            last_value = ordered.iloc[-1][test_def.variable]
+            if pd.isna(first_value):
+                raise ExperimentError(f"First iteration value for '{test_def.variable}' is missing.")
+            if pd.isna(last_value):
+                raise ExperimentError(f"Last iteration value for '{test_def.variable}' is missing.")
+            return self._percentage_change(float(first_value), float(last_value), "reduction")
         if test_def.type == "count":
             return float((ordered[test_def.variable] == test_def.count_if).sum())
         raise ExperimentError(f"Unsupported metric type: {test_def.type}")

@@ -25,7 +25,7 @@ number_of_runs: 10
 tests:
 - 
   variable: new_prj_avg_cc
-  type: last_iteration
+  type: last_iteration_reduction
   test: wilcoxon_signed_rank
   combine_runs: average
 - 
