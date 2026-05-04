@@ -36,10 +36,17 @@ class TestDefinition:
 
 
 @dataclass(frozen=True)
+class ModelDefinition:
+    name: str
+    reasoning_effort: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class RunCombination:
     project: str
     prompt_strategy: str
     model: str
+    reasoning_effort: Optional[str] = None
     run_index: int = 1
 
     def key(self) -> Tuple[str, str, str, int]:
@@ -78,7 +85,7 @@ class SettingsValidator:
 
     def validate(self) -> Dict[str, Any]:
         prompt_values = self._ensure_string_list("prompt-strategy")
-        model_values = self._ensure_string_list("model")
+        model_values = self._ensure_model_list("model")
         project_values = self._ensure_string_list("project")
         iterations = self._ensure_positive_int("iterations", default=1)
         script = self._ensure_script_path()
@@ -124,6 +131,27 @@ class SettingsValidator:
         if not all(isinstance(item, str) and item.strip() for item in value):
             raise ExperimentError(f"'{key}' must contain only non-empty strings.")
         return value
+
+    def _ensure_model_list(self, key: str) -> List[ModelDefinition]:
+        value = self.settings.get(key)
+        if not isinstance(value, list) or not value:
+            raise ExperimentError(f"'{key}' must be a non-empty list.")
+        parsed: List[ModelDefinition] = []
+        for idx, item in enumerate(value, start=1):
+            if isinstance(item, str) and item.strip():
+                parsed.append(ModelDefinition(name=item.strip(), reasoning_effort=None))
+                continue
+            if isinstance(item, dict):
+                name = item.get("name")
+                reasoning_effort = item.get("reasoning_effort", item.get("reasoaning_effort"))
+                if not isinstance(name, str) or not name.strip():
+                    raise ExperimentError(f"'{key}' item #{idx}: 'name' must be a non-empty string.")
+                if reasoning_effort is not None and (not isinstance(reasoning_effort, str) or not reasoning_effort.strip()):
+                    raise ExperimentError(f"'{key}' item #{idx}: 'reasoning_effort' must be a non-empty string when provided.")
+                parsed.append(ModelDefinition(name=name.strip(), reasoning_effort=reasoning_effort.strip() if isinstance(reasoning_effort, str) else None))
+                continue
+            raise ExperimentError(f"'{key}' item #{idx} must be either a string or a mapping with 'name' and optional 'reasoning_effort'.")
+        return parsed
 
     def _ensure_positive_int(self, key: str, default: int) -> int:
         value = self.settings.get(key, default)
@@ -204,7 +232,13 @@ class CombinationPlanner:
     def build(self) -> List[RunCombination]:
         runs = range(1, self.settings["number_of_runs"] + 1)
         return [
-            RunCombination(project=project, prompt_strategy=prompt_strategy, model=model, run_index=run_index)
+            RunCombination(
+                project=project,
+                prompt_strategy=prompt_strategy,
+                model=model.name,
+                reasoning_effort=model.reasoning_effort,
+                run_index=run_index,
+            )
             for prompt_strategy, model, project, run_index in itertools.product(
                 self.settings["prompt-strategy"],
                 self.settings["model"],
@@ -284,6 +318,8 @@ class RunExecutor:
                 f"--base-log-dir={self.log_dir}",
                 f"--iterations={self.settings['iterations']}",
             ]
+            if combination.reasoning_effort:
+                command.append(f"--reasoning-effort={combination.reasoning_effort}")
             result = subprocess.run(command)
             if result.returncode != 0:
                 raise ExperimentError(
@@ -713,6 +749,7 @@ class ResultsAnalyzer:
             "project": record.combination.project,
             "prompt_strategy": record.combination.prompt_strategy,
             "model": record.combination.model,
+            "reasoning_effort": record.combination.reasoning_effort,
             "run_index": record.combination.run_index,
             "run_dir": str(record.run_dir),
             "csv_file": str(record.csv_file),

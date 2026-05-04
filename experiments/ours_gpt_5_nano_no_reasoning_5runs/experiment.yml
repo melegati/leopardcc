@@ -1,0 +1,25 @@
+prompt-strategy:
+  - ChoiEtAl
+model:
+  - 
+    name: gpt-5-nano
+    reasoaning_effort: minimal
+iterations: 20
+project:
+- Async
+- Compromise
+- Dayjs
+- Expressjs
+- Fastify
+- GithubReadmeStats
+- Joi
+- Lintstaged
+- Nock
+- Ramda
+- Shelljs
+- Superagent
+- Supertest
+- Svgo
+- Winston
+- WS
+number_of_runs: 5
