@@ -18,6 +18,7 @@ except ImportError as exc:  # pragma: no cover
 SETTINGS_FILE = "experiment.yml"
 RESULTS_SUMMARY_FILE = "analysis_summary.csv"
 RUNS_SUMMARY_FILE = "completed_runs.csv"
+COMBINED_PROJECT_VALUES_FILE = "combined_project_values.csv"
 
 
 class ExperimentError(Exception):
@@ -332,7 +333,7 @@ class StatisticCalculator:
         if len(sample_a) == 0:
             raise ExperimentError("No paired observations were available for the statistical test.")
         if test_name == "wilcoxon_signed_rank":
-            stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative="two-sided")
+            stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative="greater")
             return float(stat.statistic), float(stat.pvalue)
         if test_name == "paired_t_test":
             stat = stats.ttest_rel(sample_a, sample_b, nan_policy="raise")
@@ -392,16 +393,17 @@ class ResultsAnalyzer:
         self.settings = settings
         self.run_records = run_records
 
-    def analyze(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def analyze(self) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.DataFrame]]:
         return self._analyze_single_option_mode() if self.settings["single_option_mode"] else self._analyze_comparison_mode()
 
-    def _analyze_comparison_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def _analyze_comparison_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.DataFrame]]:
         comparison_axis = self._detect_comparison_axis()
         comparison_values = self.settings[comparison_axis]
         fixed_axis = "model" if comparison_axis == "prompt-strategy" else "prompt-strategy"
         grouped = self._group_records_by_pairing_unit(comparison_axis)
         runs_rows: List[Dict[str, Any]] = []
         analysis_rows: List[Dict[str, Any]] = []
+        combined_project_rows: List[Dict[str, Any]] = []
 
         for pair_key, option_map in grouped.items():
             if set(option_map.keys()) != set(comparison_values):
@@ -410,6 +412,13 @@ class ResultsAnalyzer:
             right_records = option_map[comparison_values[1]]
             for record in left_records + right_records:
                 runs_rows.append(self._run_row(record))
+            combined_row: Dict[str, Any] = {
+                "project": left_records[0].combination.project,
+                "comparison_axis": comparison_axis,
+                "option_a": comparison_values[0],
+                "option_b": comparison_values[1],
+                "fixed_value": getattr(left_records[0].combination, self._python_attr(fixed_axis)),
+            }
             for test_def in self.settings["tests"]:
                 left_value = self._combine_run_metrics(left_records, test_def)
                 right_value = self._combine_run_metrics(right_records, test_def)
@@ -430,6 +439,10 @@ class ResultsAnalyzer:
                         "value_b": right_value,
                     }
                 )
+                metric_name = self._combined_metric_column_name(test_def)
+                combined_row[f"{comparison_values[0]}__{metric_name}"] = left_value
+                combined_row[f"{comparison_values[1]}__{metric_name}"] = right_value
+            combined_project_rows.append(combined_row)
 
         analysis_frame = pd.DataFrame(analysis_rows)
         if analysis_frame.empty:
@@ -472,9 +485,12 @@ class ResultsAnalyzer:
 
         runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(["project", "prompt_strategy", "model", "run_index"])
         summary_frame = pd.DataFrame(summary_rows)
-        return runs_frame, summary_frame
+        combined_frame = None
+        if self.settings["number_of_runs"] > 1:
+            combined_frame = pd.DataFrame(combined_project_rows).sort_values(["project", "fixed_value"])
+        return runs_frame, summary_frame, combined_frame
 
-    def _analyze_single_option_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def _analyze_single_option_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.DataFrame]]:
         new_columns = ["new_prj_avg_cc", "new_fn_count", "new_avg_nloc"]
         old_columns = ["old_prj_avg_cc", "old_fn_count", "old_avg_nloc"]
         last_iteration_old_cc_column = "old_cc"
@@ -548,7 +564,7 @@ class ResultsAnalyzer:
 
         runs_frame = pd.DataFrame(runs_rows).drop_duplicates().sort_values(["project", "prompt_strategy", "model", "run_index"])
         summary_frame = pd.DataFrame(summary_rows)
-        return runs_frame, summary_frame
+        return runs_frame, summary_frame, None
 
     def _group_records_by_pairing_unit(self, comparison_axis: str) -> Dict[Tuple[str, str], Dict[str, List[RunRecord]]]:
         groups: Dict[Tuple[str, str], Dict[str, List[RunRecord]]] = {}
@@ -565,9 +581,17 @@ class ResultsAnalyzer:
                 option_map[option_value] = sorted(records, key=lambda item: item.combination.run_index)
         return groups
 
+    def _combined_metric_column_name(self, test_def: TestDefinition) -> str:
+        parts = [test_def.variable, test_def.type]
+        if test_def.type == "count" and test_def.count_if is not None:
+            parts.append(f"count_if_{test_def.count_if}")
+        if test_def.combine_runs:
+            parts.append(test_def.combine_runs)
+        return "__".join(str(part).replace(" ", "_") for part in parts)
+
     def _combine_run_metrics(self, records: Sequence[RunRecord], test_def: TestDefinition) -> float:
         if len(records) != self.settings["number_of_runs"]:
-            raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs but found {len(records)} for comparison aggregation.")
+            raise ExperimentError(f"Expected {self.settings['number_of_runs']} runs but found {len(records)} for comparison aggregation for {records[0].combination.project}.")
         per_run_values = [self._extract_metric(pd.read_csv(record.csv_file), test_def) for record in records]
         if len(per_run_values) == 1:
             return float(per_run_values[0])
@@ -637,9 +661,11 @@ class ExperimentRunner:
         missing = [combo for combo in combinations if combo.key() not in completed_runs]
         if missing:
             raise ExperimentError(f"Some combinations were not completed: {missing}")
-        runs_frame, summary_frame = ResultsAnalyzer(settings, completed_runs).analyze()
+        runs_frame, summary_frame, combined_frame = ResultsAnalyzer(settings, completed_runs).analyze()
         runs_frame.to_csv(self.experiment_dir / RUNS_SUMMARY_FILE, index=False)
         summary_frame.to_csv(self.experiment_dir / RESULTS_SUMMARY_FILE, index=False)
+        if combined_frame is not None:
+            combined_frame.to_csv(self.experiment_dir / COMBINED_PROJECT_VALUES_FILE, index=False)
 
 
 def parse_args() -> argparse.Namespace:

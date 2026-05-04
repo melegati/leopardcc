@@ -218,3 +218,4 @@ repos/
 experiments/*/logs
 experiments/*/analysis_summary.csv
 experiments/*/completed_runs.csv
+experiments/*/combined_project_values.csv
