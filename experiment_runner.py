@@ -32,6 +32,7 @@ class TestDefinition:
     test: str
     count_if: Optional[Any] = None
     combine_runs: Optional[str] = None
+    alternative: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,7 @@ class SettingsValidator:
             test_name = test_def.get("test")
             count_if = test_def.get("count_if")
             combine_runs = test_def.get("combine_runs")
+            alternative = test_def.get("alternative")
 
             if not isinstance(variable, str) or not variable.strip():
                 raise ExperimentError(f"Test #{idx}: 'variable' must be a non-empty string.")
@@ -170,6 +172,18 @@ class SettingsValidator:
                     f"Test #{idx}: 'combine_runs' must be one of average, standard_deviation, maximum, minimum when provided."
                 )
 
+            if test_name == "wilcoxon_signed_rank":
+                if alternative is None:
+                    alternative = "two-sided"
+                if alternative not in {"two-sided", "greater", "less"}:
+                    raise ExperimentError(
+                        f"Test #{idx}: 'alternative' for wilcoxon_signed_rank must be one of two-sided, greater, less."
+                    )
+            elif alternative is not None:
+                raise ExperimentError(
+                    f"Test #{idx}: 'alternative' is only supported for wilcoxon_signed_rank."
+                )
+
             parsed.append(
                 TestDefinition(
                     variable=variable,
@@ -177,6 +191,7 @@ class SettingsValidator:
                     test=test_name,
                     count_if=count_if,
                     combine_runs=combine_runs,
+                    alternative=alternative,
                 )
             )
         return parsed
@@ -327,13 +342,18 @@ class RunExecutor:
 
 class StatisticCalculator:
     @staticmethod
-    def run_test(test_name: str, sample_a: Sequence[float], sample_b: Sequence[float]) -> Tuple[float, float]:
+    def run_test(
+        test_name: str,
+        sample_a: Sequence[float],
+        sample_b: Sequence[float],
+        alternative: str = "two-sided",
+    ) -> Tuple[float, float]:
         if len(sample_a) != len(sample_b):
             raise ExperimentError("Paired statistical tests require both samples to have the same size.")
         if len(sample_a) == 0:
             raise ExperimentError("No paired observations were available for the statistical test.")
         if test_name == "wilcoxon_signed_rank":
-            stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative="two-sided")
+            stat = stats.wilcoxon(sample_a, sample_b, zero_method="wilcox", alternative=alternative)
             return float(stat.statistic), float(stat.pvalue)
         if test_name == "paired_t_test":
             stat = stats.ttest_rel(sample_a, sample_b, nan_policy="raise")
@@ -466,7 +486,12 @@ class ResultsAnalyzer:
             ]
             sample_a = subset["value_a"].tolist()
             sample_b = subset["value_b"].tolist()
-            statistic, pvalue = StatisticCalculator.run_test(test_def.test, sample_a, sample_b)
+            statistic, pvalue = StatisticCalculator.run_test(
+                test_def.test,
+                sample_a,
+                sample_b,
+                alternative=test_def.alternative or "two-sided",
+            )
             effect_size_name, effect_size_value = StatisticCalculator.effect_size(test_def.test, sample_a, sample_b)
             summary_rows.append(
                 {
@@ -478,6 +503,7 @@ class ResultsAnalyzer:
                     "count_if": test_def.count_if,
                     "combine_runs": combine_runs_value,
                     "test": test_def.test,
+                    "alternative": test_def.alternative or "not_applicable",
                     "paired_samples": len(subset),
                     "mean_a": subset["value_a"].mean(),
                     "mean_b": subset["value_b"].mean(),

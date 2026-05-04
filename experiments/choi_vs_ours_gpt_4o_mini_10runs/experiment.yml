@@ -27,6 +27,7 @@ tests:
   variable: new_prj_avg_cc
   type: last_iteration_reduction
   test: wilcoxon_signed_rank
+  alternative: less
   combine_runs: average
 - 
   variable: result
