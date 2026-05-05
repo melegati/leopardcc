@@ -1,0 +1,39 @@
+prompt-strategy:
+- Ours
+model:
+- gpt-4o-mini
+- 
+  name: gpt-oss:120b
+  reasoaning_effort: low
+iterations: 20
+project:
+- Async
+- Compromise
+- Dayjs
+- Expressjs
+- Fastify
+- GithubReadmeStats
+- Joi
+- Lintstaged
+- Nock
+- Ramda
+- Shelljs
+- Superagent
+- Supertest
+- Svgo
+- Winston
+- WS
+number_of_runs: 10
+tests:
+- 
+  variable: new_prj_avg_cc
+  type: last_iteration_reduction
+  test: wilcoxon_signed_rank
+  alternative: less
+  combine_runs: average
+- 
+  variable: result
+  type: count
+  count_if: success
+  test: paired_t_test
+  combine_runs: average
