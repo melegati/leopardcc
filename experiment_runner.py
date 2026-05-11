@@ -276,7 +276,7 @@ class ExistingRunScanner:
                 )
                 grouped.setdefault(base_key, []).append(
                     RunRecord(
-                        combination=RunCombination(base_key[0], base_key[1], base_key[2], 0),
+                        combination=RunCombination(base_key[0], base_key[1], base_key[2], run_index=0),
                         run_dir=run_dir,
                         csv_file=csv_file,
                     )
@@ -286,7 +286,7 @@ class ExistingRunScanner:
         indexed: Dict[Tuple[str, str, str, int], RunRecord] = {}
         for base_key, records in grouped.items():
             for idx, record in enumerate(sorted(records, key=lambda item: str(item.run_dir)), start=1):
-                combination = RunCombination(base_key[0], base_key[1], base_key[2], idx)
+                combination = RunCombination(base_key[0], base_key[1], base_key[2], run_index=idx)
                 indexed[combination.key()] = RunRecord(combination, record.run_dir, record.csv_file)
         return indexed
 
