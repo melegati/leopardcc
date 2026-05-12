@@ -27,7 +27,7 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
         self.max_context_length = max_context_length
         self.messages: list[dict[str, str]] = []
         self.client = OpenAI(api_key=self.api_key, base_url=base_url)
-        self.reasoning_effort = reasoning_effort
+        self.__reasoning_effort = reasoning_effort
         self.token_counter = token_counter
         self.__sent_tokens_count = 0
         self.__received_tokens_count = 0
@@ -35,6 +35,10 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
     @property
     def model(self):
         return self.__model
+
+    @property
+    def reasoning_effort(self):
+        return self.__reasoning_effort
 
     @property
     def sent_tokens_count(self):
@@ -71,7 +75,7 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
                 f"Failed to save message history to {self.log_path}: {e}")
 
     def _send_message(self, context):
-        if self.reasoning_effort is None:
+        if self.__reasoning_effort is None:
             completion = self.client.chat.completions.create(
                         model=self.__model,
                         messages=context
@@ -79,7 +83,7 @@ class OpenAIAPIWrapper(LLMWrapperInterface):
         else:
             completion = self.client.chat.completions.create(
                         model=self.__model,
-                        reasoning_effort=self.reasoning_effort,
+                        reasoning_effort=self.__reasoning_effort,
                         messages=context
                     )
         return completion

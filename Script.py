@@ -76,6 +76,7 @@ def create_time_series_entry(function: Function, llm_wrapper: LLMWrapperInterfac
         'prompt_strategy': prompt_strategy.name,
         'verification_strategy': verification_strategy.name,
         'model': function.llm_wrapper.model,
+        'reasoning_effort': function.llm_wrapper.reasoning_effort,
         'timestamp': datetime.now(timezone.utc),
         'function_file': function.relative_path,
         'function_name': function.lizard_result.long_name,

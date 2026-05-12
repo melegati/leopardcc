@@ -11,6 +11,7 @@ class TimeEntry(TypedDict):
     prompt_strategy: str
     verification_strategy: str
     model: str
+    reasoning_effort: str
 
     timestamp: datetime
 
