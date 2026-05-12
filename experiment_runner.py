@@ -49,8 +49,8 @@ class RunCombination:
     reasoning_effort: Optional[str] = None
     run_index: int = 1
 
-    def key(self) -> Tuple[str, str, str, int]:
-        return (self.project, self.prompt_strategy, self.model, self.run_index)
+    def key(self) -> Tuple[str, str, str, Optional[str], int]:
+        return (self.project, self.prompt_strategy, self.model, self.reasoning_effort, self.run_index)
 
 
 @dataclass
@@ -252,8 +252,8 @@ class ExistingRunScanner:
     def __init__(self, log_dir: Path) -> None:
         self.log_dir = log_dir
 
-    def scan(self) -> Dict[Tuple[str, str, str, int], RunRecord]:
-        grouped: Dict[Tuple[str, str, str], List[RunRecord]] = {}
+    def scan(self) -> Dict[Tuple[str, str, str, Optional[str], int], RunRecord]:
+        grouped: Dict[Tuple[str, str, str, Optional[str]], List[RunRecord]] = {}
         if not self.log_dir.exists():
             return {}
 
@@ -269,24 +269,28 @@ class ExistingRunScanner:
                 if not required.issubset(frame.columns):
                     continue
                 last_row = frame.sort_values("iteration").iloc[-1]
+                reasoning_effort = None
+                if "reasoning_effort" in frame.columns and not pd.isna(last_row.get("reasoning_effort")):
+                    reasoning_effort = str(last_row["reasoning_effort"])
                 base_key = (
                     str(last_row["project"]),
                     str(last_row["prompt_strategy"]),
                     str(last_row["model"]),
+                    reasoning_effort,
                 )
                 grouped.setdefault(base_key, []).append(
                     RunRecord(
-                        combination=RunCombination(base_key[0], base_key[1], base_key[2], run_index=0),
+                        combination=RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], run_index=0),
                         run_dir=run_dir,
                         csv_file=csv_file,
                     )
                 )
                 break
 
-        indexed: Dict[Tuple[str, str, str, int], RunRecord] = {}
+        indexed: Dict[Tuple[str, str, str, Optional[str], int], RunRecord] = {}
         for base_key, records in grouped.items():
             for idx, record in enumerate(sorted(records, key=lambda item: str(item.run_dir)), start=1):
-                combination = RunCombination(base_key[0], base_key[1], base_key[2], run_index=idx)
+                combination = RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], run_index=idx)
                 indexed[combination.key()] = RunRecord(combination, record.run_dir, record.csv_file)
         return indexed
 
@@ -300,8 +304,8 @@ class RunExecutor:
     def execute_missing(
         self,
         combinations: Sequence[RunCombination],
-        existing_runs: Dict[Tuple[str, str, str, int], RunRecord],
-    ) -> Dict[Tuple[str, str, str, int], RunRecord]:
+        existing_runs: Dict[Tuple[str, str, str, Optional[str], int], RunRecord],
+    ) -> Dict[Tuple[str, str, str, Optional[str], int], RunRecord]:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         completed = dict(existing_runs)
 
@@ -343,7 +347,7 @@ class RunExecutor:
         self,
         combination: RunCombination,
         candidate_dirs: Iterable[Path],
-        completed: Dict[Tuple[str, str, str, int], RunRecord],
+        completed: Dict[Tuple[str, str, str, Optional[str], int], RunRecord],
     ) -> Optional[RunRecord]:
         used_dirs = {record.run_dir.resolve() for record in completed.values()}
         matches: List[RunRecord] = []
@@ -367,10 +371,14 @@ class RunExecutor:
         if not required.issubset(frame.columns):
             return None
         last_row = frame.sort_values("iteration").iloc[-1]
+        record_reasoning_effort = None
+        if "reasoning_effort" in frame.columns and not pd.isna(last_row.get("reasoning_effort")):
+            record_reasoning_effort = str(last_row["reasoning_effort"])
         if (
             str(last_row["project"]) == combination.project
             and str(last_row["prompt_strategy"]) == combination.prompt_strategy
             and str(last_row["model"]) == combination.model
+            and record_reasoning_effort == combination.reasoning_effort
         ):
             return RunRecord(combination, run_dir, csv_file)
         return None
@@ -445,7 +453,7 @@ class StatisticCalculator:
 
 
 class ResultsAnalyzer:
-    def __init__(self, settings: Dict[str, Any], run_records: Dict[Tuple[str, str, str, int], RunRecord]) -> None:
+    def __init__(self, settings: Dict[str, Any], run_records: Dict[Tuple[str, str, str, Optional[str], int], RunRecord]) -> None:
         self.settings = settings
         self.run_records = run_records
 
@@ -454,7 +462,7 @@ class ResultsAnalyzer:
 
     def _analyze_comparison_mode(self) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.DataFrame]]:
         comparison_axis = self._detect_comparison_axis()
-        comparison_values = self.settings[comparison_axis]
+        comparison_values = self._comparison_values(comparison_axis)
         fixed_axis = "model" if comparison_axis == "prompt-strategy" else "prompt-strategy"
         grouped = self._group_records_by_pairing_unit(comparison_axis)
         runs_rows: List[Dict[str, Any]] = []
@@ -639,11 +647,11 @@ class ResultsAnalyzer:
         groups: Dict[Tuple[str, str], Dict[str, List[RunRecord]]] = {}
         for record in self.run_records.values():
             if comparison_axis == "prompt-strategy":
-                pair_key = (record.combination.project, record.combination.model)
+                pair_key = (record.combination.project, self._comparison_label_from_record(record.combination, "model"))
                 option_value = record.combination.prompt_strategy
             else:
                 pair_key = (record.combination.project, record.combination.prompt_strategy)
-                option_value = record.combination.model
+                option_value = self._comparison_label_from_record(record.combination, "model")
             groups.setdefault(pair_key, {}).setdefault(option_value, []).append(record)
         for pair_key, option_map in groups.items():
             for option_value, records in option_map.items():
@@ -740,6 +748,20 @@ class ResultsAnalyzer:
         if mode == "increase":
             return ((new_value - old_value) / old_value) * 100.0
         raise ExperimentError(f"Unsupported percentage change mode: {mode}")
+
+    def _comparison_values(self, comparison_axis: str) -> List[str]:
+        if comparison_axis == "model":
+            return [self._model_label(model) for model in self.settings["model"]]
+        return list(self.settings[comparison_axis])
+
+    @staticmethod
+    def _model_label(model: ModelDefinition) -> str:
+        return f"{model.name} [reasoning_effort={model.reasoning_effort}]" if model.reasoning_effort else model.name
+
+    def _comparison_label_from_record(self, combination: RunCombination, axis: str) -> str:
+        if axis == "model":
+            return self._model_label(ModelDefinition(combination.model, combination.reasoning_effort))
+        return getattr(combination, self._python_attr(axis))
 
     def _detect_comparison_axis(self) -> str:
         return "prompt-strategy" if len(self.settings["prompt-strategy"]) == 2 else "model"
