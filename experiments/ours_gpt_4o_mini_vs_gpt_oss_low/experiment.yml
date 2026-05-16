@@ -29,7 +29,7 @@ tests:
   variable: new_prj_avg_cc
   type: last_iteration_reduction
   test: wilcoxon_signed_rank
-  alternative: less
+  alternative: two-sided
   combine_runs: average
 - 
   variable: result
@@ -37,3 +37,13 @@ tests:
   count_if: success
   test: paired_t_test
   combine_runs: average
+- 
+  variable: sent_tokens
+  type: sum
+  test: wilcoxon_signed_rank
+  combine_runs: average
+- 
+  variable: received_tokens
+  type: sum
+  test: wilcoxon_signed_rank
+  combine_runs: average    
