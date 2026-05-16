@@ -220,7 +220,7 @@ def read_args():
     parser.add_argument("--project", required=True, type=str)
     parser.add_argument("--project-folder", type=str, default="projects")
     parser.add_argument("--prompt-strategy", type=str, choices=['ChoiEtAl', 'Ours'], default='ChoiEtAl')
-    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'gemini-2.5-flash', 'gpt-5-mini', 'gpt-5-nano', 'deepseek-r1:1.5b'], default='gpt-4o-mini')
+    parser.add_argument("--model", type=str, choices=['gpt-4o-mini', 'gpt-4.1-mini', 'gemini-2.5-flash', 'gpt-5-mini', 'gpt-5-nano', 'gpt-oss:120b', 'deepseek-r1:1.5b'], default='gpt-4o-mini')
     parser.add_argument("--reasoning-effort", type=str)
     parser.add_argument("--base-log-dir", type=str, default="logs/")
     parser.add_argument("--iterations", type=int, default=20)
