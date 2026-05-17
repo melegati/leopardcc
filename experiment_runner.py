@@ -280,7 +280,7 @@ class ExistingRunScanner:
                 )
                 grouped.setdefault(base_key, []).append(
                     RunRecord(
-                        combination=RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], 0),
+                        combination=RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], run_index=0),
                         run_dir=run_dir,
                         csv_file=csv_file,
                     )
@@ -290,7 +290,7 @@ class ExistingRunScanner:
         indexed: Dict[Tuple[str, str, str, Optional[str], int], RunRecord] = {}
         for base_key, records in grouped.items():
             for idx, record in enumerate(sorted(records, key=lambda item: str(item.run_dir)), start=1):
-                combination = RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], idx)
+                combination = RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], run_index=idx)
                 indexed[combination.key()] = RunRecord(combination, record.run_dir, record.csv_file)
         return indexed
 
@@ -323,7 +323,7 @@ class RunExecutor:
                 f"--iterations={self.settings['iterations']}",
             ]
             if combination.reasoning_effort:
-                command.append(f"--reasoning_effort={combination.reasoning_effort}")
+                command.append(f"--reasoning-effort={combination.reasoning_effort}")
             result = subprocess.run(command)
             if result.returncode != 0:
                 raise ExperimentError(
