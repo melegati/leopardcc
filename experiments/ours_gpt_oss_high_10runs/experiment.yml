@@ -7,4 +7,19 @@ model:
 iterations: 20
 project:
 - WS
+- Winston
+- Svgo
+- Supertest
+- Superagent
+- Ramda
+- Nock
+- Lintstaged
+- Joi
+- GithubReadmeStats
+- Fastify
+- Expressjs
+- Dayjs
+- Compromise
+- Async
+- Shelljs
 number_of_runs: 10
