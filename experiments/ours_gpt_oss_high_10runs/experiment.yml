@@ -1,0 +1,10 @@
+prompt-strategy:
+  - Ours
+model:
+-
+  name: gpt-oss:120b-cloud
+  reasoaning_effort: high
+iterations: 20
+project:
+- WS
+number_of_runs: 10

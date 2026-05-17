@@ -10,6 +10,9 @@ class OllamaModelWrapper(OpenAIAPIWrapper):
                           'gpt-oss:120b': {
                                 'max_context': 128000, 
                                 'hf_tokenizer': "openai/gpt-oss-120b"  },
+                          'gpt-oss:120b-cloud': {
+                                'max_context': 128000, 
+                                'hf_tokenizer': "openai/gpt-oss-120b"  },      
                           'qwen3.6:35b': {
                                 'max_context': 256000, 
                                 'hf_tokenizer': "Qwen/Qwen3.6-35B-A3B"  },      
