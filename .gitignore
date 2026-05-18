@@ -219,3 +219,8 @@ experiments/*/logs
 experiments/*/analysis_summary.csv
 experiments/*/completed_runs.csv
 experiments/*/combined_project_values.csv
+
+other_experiments/*/logs
+other_experiments/*/analysis_summary.csv
+other_experiments/*/completed_runs.csv
+other_experiments/*/combined_project_values.csv

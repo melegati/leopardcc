@@ -19,7 +19,6 @@ project:
 - Lintstaged
 - Nock
 - Ramda
-- Shelljs
 - Superagent
 - Supertest
 - Svgo
@@ -37,5 +36,15 @@ tests:
   variable: result
   type: count
   count_if: success
-  test: paired_t_test
+  test: wilcoxon_signed_rank
   combine_runs: average
+- 
+  variable: sent_tokens
+  type: sum
+  test: wilcoxon_signed_rank
+  combine_runs: average
+- 
+  variable: received_tokens
+  type: sum
+  test: wilcoxon_signed_rank
+  combine_runs: average   
