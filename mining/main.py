@@ -190,7 +190,7 @@ def has_test_coverage() -> tuple[Callable[[dict, Dict[str, Any]], bool], str]:
 # --- Main Program ---
 
 def main():
-    query = "language:JavaScript stars:>5000"
+    query = "language:JavaScript stars:>10000"
     print("Fetching repositories...")
     repos = fetch_repos(query, per_page=100, pages=20)  # Lower for testing
     print(f'Retrieved {len(repos)} repositories.')
