@@ -249,8 +249,19 @@ class CombinationPlanner:
 
 
 class ExistingRunScanner:
-    def __init__(self, log_dir: Path) -> None:
+    def __init__(self, log_dir: Path, expected_combinations: Sequence[RunCombination]) -> None:
         self.log_dir = log_dir
+        self.expected_base_keys = {
+            (combo.project, combo.prompt_strategy, combo.model, combo.reasoning_effort)
+            for combo in expected_combinations
+        }
+        self.expected_run_counts: Dict[Tuple[str, str, str, Optional[str]], int] = {}
+        for combo in expected_combinations:
+            base_key = (combo.project, combo.prompt_strategy, combo.model, combo.reasoning_effort)
+            self.expected_run_counts[base_key] = max(
+                self.expected_run_counts.get(base_key, 0),
+                combo.run_index,
+            )
 
     def scan(self) -> Dict[Tuple[str, str, str, Optional[str], int], RunRecord]:
         grouped: Dict[Tuple[str, str, str, Optional[str]], List[RunRecord]] = {}
@@ -278,6 +289,8 @@ class ExistingRunScanner:
                     str(last_row["model"]),
                     reasoning_effort,
                 )
+                if base_key not in self.expected_base_keys:
+                    break
                 grouped.setdefault(base_key, []).append(
                     RunRecord(
                         combination=RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], run_index=0),
@@ -289,7 +302,10 @@ class ExistingRunScanner:
 
         indexed: Dict[Tuple[str, str, str, Optional[str], int], RunRecord] = {}
         for base_key, records in grouped.items():
+            expected_count = self.expected_run_counts.get(base_key, 0)
             for idx, record in enumerate(sorted(records, key=lambda item: str(item.run_dir)), start=1):
+                if idx > expected_count:
+                    break
                 combination = RunCombination(base_key[0], base_key[1], base_key[2], base_key[3], run_index=idx)
                 indexed[combination.key()] = RunRecord(combination, record.run_dir, record.csv_file)
         return indexed
@@ -795,7 +811,7 @@ class ExperimentRunner:
     def run(self) -> None:
         settings = SettingsValidator(SettingsLoader(self.experiment_dir).load()).validate()
         combinations = CombinationPlanner(settings).build()
-        existing_runs = ExistingRunScanner(self.log_dir).scan()
+        existing_runs = ExistingRunScanner(self.log_dir, combinations).scan()
         completed_runs = RunExecutor(self.experiment_dir, self.log_dir, settings).execute_missing(combinations, existing_runs)
         missing = [combo for combo in combinations if combo.key() not in completed_runs]
         if missing:

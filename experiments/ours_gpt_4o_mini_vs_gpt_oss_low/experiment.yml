@@ -17,7 +17,6 @@ project:
 - Lintstaged
 - Nock
 - Ramda
-- Shelljs
 - Superagent
 - Supertest
 - Svgo
